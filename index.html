@@ -120,8 +120,8 @@
         var storage = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } } };
 
         var LANG = {
-            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "SKOR", coin: "ALTIN", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK", q_prefix: "Hangisi:", speak_prefix: "Aşağıdakilerden hangisi", color: "RENK", price: "Fiyat", ammo: "MERMİ", kspeed: "ÇOCUK HIZI", paused: "DURAKLATILDI", resume: "DEVAM ET", menu: "ANA MENÜ", quiz_title: "SESLİ KOMUT SİSTEMİ", buy_color: "SATIN ALARAK RENK DEĞİŞTİR", error: "Hata", line: "Satır", kids_mode: "ÇOCUK MODU AKTİF" },
-            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "SCORE", coin: "GOLD", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS", q_prefix: "Which is:", speak_prefix: "Which one is", color: "COLOR", price: "Price", ammo: "AMMO", kspeed: "KIDS SPEED", paused: "PAUSED", resume: "RESUME", menu: "MAIN MENU", quiz_title: "VOICE COMMAND SYSTEM", buy_color: "BUY TO CHANGE COLOR", error: "Error", line: "Line", kids_mode: "KIDS MODE ACTIVE" }
+            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "SKOR", coin: "ALTIN", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK", q_prefix: "Hangisi:", speak_prefix: "Aşağıdakilerden hangisi", color: "RENK", price: "Fiyat", ammo: "MERMİ", kspeed: "ÇOCUK HIZI", paused: "DURAKLATILDI", resume: "DEVAM ET", menu: "ANA MENÜ", quiz_title: "SESLİ KOMUT SİSTEMİ", buy_color: "SATIN ALARAK RENK DEĞİŞTİR", error: "Hata", line: "Satır", kids_mode: "ÇOCUK MODU AKTİF", confirm_buy: "Bu rengi almak istiyor musun?", yes: "EVET", no: "HAYIR", gold: "Altın" },
+            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "SCORE", coin: "GOLD", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS", q_prefix: "Which is:", speak_prefix: "Which one is", color: "COLOR", price: "Price", ammo: "AMMO", kspeed: "KIDS SPEED", paused: "PAUSED", resume: "RESUME", menu: "MAIN MENU", quiz_title: "VOICE COMMAND SYSTEM", buy_color: "BUY TO CHANGE COLOR", error: "Error", line: "Line", kids_mode: "KIDS MODE ACTIVE", confirm_buy: "Do you want to buy this color?", yes: "YES", no: "NO", gold: "Gold" }
         };
 
         var EMOJIS = [
@@ -293,6 +293,11 @@
                 if (y > h / 2 - 60 && y < h / 2 - 10) { state = 'playing'; playSound('select'); return; }
                 // Menu
                 if (y > h / 2 + 10 && y < h / 2 + 60) { state = 'menu'; playSound('select'); return; }
+            } else if (state === 'colorConfirm') {
+                // YES button
+                if (x > w / 2 - 110 && x < w / 2 - 10 && y > h / 2 + 30 && y < h / 2 + 80) { confirmColorPurchase(true); return; }
+                // NO button
+                if (x > w / 2 + 10 && x < w / 2 + 110 && y > h / 2 + 30 && y < h / 2 + 80) { confirmColorPurchase(false); return; }
             } else if (state === 'gameover') { state = 'menu'; }
         }
 
@@ -486,6 +491,7 @@
             else if (state === 'garage') drawGarage();
             else if (state === 'playing' || state === 'paused' || state === 'quiz') drawGame();
             else if (state === 'gameover') drawGameOver();
+            else if (state === 'colorConfirm') drawColorConfirm();
         }
 
         function drawGame() {
@@ -591,6 +597,33 @@
             if (parseInt(Date.now() / 500) % 2) ctx.fillText(T.restart, cx, cy + 200);
         }
 
+        function drawColorConfirm() {
+            // Draw garage background first
+            drawGarage();
+            // Overlay
+            ctx.fillStyle = "rgba(0,0,0,0.85)"; ctx.fillRect(0, 0, w, h);
+            var cx = w / 2, cy = h / 2;
+            // Modal box
+            ctx.fillStyle = "#1a1a2e"; ctx.fillRect(cx - 150, cy - 80, 300, 180);
+            ctx.strokeStyle = C.CYAN; ctx.lineWidth = 3; ctx.strokeRect(cx - 150, cy - 80, 300, 180);
+            // Title
+            glow(15, C.CYAN); ctx.textAlign = "center"; ctx.fillStyle = C.CYAN; ctx.font = "bold 20px Verdana";
+            ctx.fillText(T.confirm_buy, cx, cy - 40); glow(0);
+            // Color preview and price
+            if (pendingColor) {
+                ctx.fillStyle = C[pendingColor]; ctx.fillRect(cx - 25, cy - 20, 50, 30);
+                ctx.fillStyle = C.YELLOW; ctx.font = "24px Verdana";
+                ctx.fillText(COLOR_PRICES[pendingColor] + " " + T.gold, cx, cy + 30);
+            }
+            // YES button
+            ctx.fillStyle = C.GREEN; ctx.fillRect(cx - 110, cy + 50, 100, 40);
+            ctx.fillStyle = "#fff"; ctx.font = "bold 20px Verdana"; ctx.fillText(T.yes, cx - 60, cy + 77);
+            // NO button
+            ctx.fillStyle = C.RED; ctx.fillRect(cx + 10, cy + 50, 100, 40);
+            ctx.fillStyle = "#fff"; ctx.fillText(T.no, cx + 60, cy + 77);
+        }
+
+
         var gIdx = 0; function garageNav(d) { var k = Object.keys(VEHICLES); gIdx += d; if (gIdx < 0) gIdx = k.length - 1; if (gIdx >= k.length) gIdx = 0; }
         function buy() { var k = Object.keys(VEHICLES), id = k[gIdx]; if (saved.cars.includes(id)) { playSound('select'); saved.cur = id; save(); } else if (saved.coins >= VEHICLES[id].price) { playSound('coin'); saved.coins -= VEHICLES[id].price; saved.cars.push(id); saved.cur = id; save(); } }
         function buyColor(key) {
@@ -600,23 +633,28 @@
                 // Already owned - just select
                 saved.selColor[car] = key; playSound('select'); save(); pendingColor = null;
             } else {
-                // Not owned - confirmation system
-                if (pendingColor === key) {
-                    // Second click - buy it
-                    var price = COLOR_PRICES[key];
-                    if (saved.coins >= price) {
-                        saved.coins -= price; saved.ownColors[car].push(key); saved.selColor[car] = key;
-                        playSound('coin'); save();
-                    } else {
-                        playSound('error');
-                    }
-                    pendingColor = null;
+                // Not owned - show confirmation modal
+                pendingColor = key;
+                state = 'colorConfirm';
+                playSound('select');
+            }
+        }
+
+        function confirmColorPurchase(confirm) {
+            if (confirm && pendingColor) {
+                var car = Object.keys(VEHICLES)[gIdx];
+                var price = COLOR_PRICES[pendingColor];
+                if (saved.coins >= price) {
+                    saved.coins -= price;
+                    saved.ownColors[car].push(pendingColor);
+                    saved.selColor[car] = pendingColor;
+                    playSound('coin'); save();
                 } else {
-                    // First click - mark as pending
-                    pendingColor = key;
-                    playSound('select');
+                    playSound('error');
                 }
             }
+            pendingColor = null;
+            state = 'garage';
         }
 
         function drawGarage() {
