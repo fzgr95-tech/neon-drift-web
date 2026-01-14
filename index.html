@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="theme-color" content="#0a0a0f">
+    <meta name="description" content="Neon Drift - Cyberpunk Endless Runner Game">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>NEON DRIFT</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Touch Controls -->
+        <div id="touch-controls">
+            <div id="left-zone" class="touch-zone"></div>
+            <div id="right-zone" class="touch-zone"></div>
+        </div>
+
+        <!-- Touch Indicators -->
+        <div id="left-indicator" class="touch-indicator">◀</div>
+        <div id="right-indicator" class="touch-indicator">▶</div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loading-content">
+            <h1 class="neon-text">NEON DRIFT</h1>
+            <div class="loading-bar">
+                <div class="loading-fill"></div>
+            </div>
+            <p>Yükleniyor...</p>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+    <script>
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('SW registered'))
+                .catch(err => console.log('SW failed', err));
+        }
+    </script>
+</body>
+
+</html>
