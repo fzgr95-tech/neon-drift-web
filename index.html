@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>NEON DRIFT FINAL v13.0</title>
+    <title>NEON DRIFT FINAL v14.0</title>
     <style>
         body {
             background-color: #050510;
@@ -83,9 +83,9 @@
 <body>
 
     <div id="loader">
-        SYSTEM UPDATE v13.0<br>
-        ACTIVATING VOICE SYNTHESIS...<br>
-        REVERSING QUIZ LOGIC...
+        SYSTEM UPDATE v14.0<br>
+        UPGRADING VISUALS...<br>
+        OPENING PAINT SHOP...
     </div>
 
     <div id="quiz-overlay">
@@ -99,15 +99,15 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // === NEON DRIFT: FINAL v13.0 ===
-        // Text Question -> Emoji Answers + Text-to-Speech (TTS)
+        // === NEON DRIFT: FINAL v14.0 ===
+        // Visual Upgrade + Paint Shop + Color Customization
 
         window.onerror = function (msg, url, line) { alert("Hata: " + msg + "\nSatır: " + line); return false; };
         var storage = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } } };
 
         var LANG = {
-            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "Skor", coin: "Para", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK", q_prefix: "Hangisi:", speak_prefix: "Aşağıdakilerden hangisi" },
-            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "Score", coin: "Cash", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS", q_prefix: "Which is:", speak_prefix: "Which one is" }
+            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "Skor", coin: "Para", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK", q_prefix: "Hangisi:", speak_prefix: "Aşağıdakilerden hangisi", color: "RENK", price: "Fiyat" },
+            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "Score", coin: "Cash", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS", q_prefix: "Which is:", speak_prefix: "Which one is", color: "COLOR", price: "Price" }
         };
 
         var EMOJIS = [
@@ -126,24 +126,34 @@
             { e: "🚑", tr: "Ambulans", en: "Ambulance" }, { e: "🚒", tr: "İtfaiye", en: "Fire Truck" }, { e: "🚀", tr: "Roket", en: "Rocket" }, { e: "✈️", tr: "Uçak", en: "Airplane" }
         ];
 
-        var C = { CYAN: '#00ffff', PINK: '#ff00ff', YELLOW: '#ffff00', RED: '#ff3366', GREEN: '#00ff64', BLUE: '#0096ff', PURPLE: '#b400ff', WHITE: '#ffffff', DARK: '#1e1e28' };
+        var C = { CYAN: '#00ffff', PINK: '#ff00ff', YELLOW: '#ffff00', RED: '#ff3366', GREEN: '#00ff64', BLUE: '#0096ff', PURPLE: '#b400ff', WHITE: '#ffffff', DARK: '#1e1e28', ORANGE: '#ffaa00' };
+        var COLOR_PRICES = { CYAN: 0, PINK: 200, YELLOW: 200, RED: 200, GREEN: 200, BLUE: 200, PURPLE: 500, WHITE: 1000, ORANGE: 300 };
+        var COLOR_KEYS = Object.keys(C).filter(k => k !== 'DARK');
 
         var VEHICLES = {
-            sport: { price: 0, name: "Neon GT", speed: 1.0 },
-            suv: { price: 500, name: "Tank 3000", speed: 0.8 },
-            moto: { price: 800, name: "Tron Bike", speed: 1.3 },
-            future: { price: 1500, name: "UFO-X", speed: 1.5 },
-            retro: { price: 1200, name: "Delorean", speed: 1.1 }
+            sport: { price: 0, name: "Neon GT", speed: 1.0, defCol: 'CYAN' },
+            suv: { price: 500, name: "Tank 3000", speed: 0.8, defCol: 'GREEN' },
+            moto: { price: 800, name: "Tron Bike", speed: 1.3, defCol: 'YELLOW' },
+            future: { price: 1500, name: "UFO-X", speed: 1.5, defCol: 'PURPLE' },
+            retro: { price: 1200, name: "Delorean", speed: 1.1, defCol: 'RED' }
         };
 
         var cvs, ctx, w, h;
         var state = 'menu';
-        var saved = { coins: 0, cars: ['sport'], cur: 'sport', high: 0, lang: 'TR', vol: 5, diff: 1, lowQ: false };
+        var saved = {
+            coins: 0, cars: ['sport'], cur: 'sport', high: 0, lang: 'TR', vol: 5, diff: 1, lowQ: false,
+            ownColors: { 'sport': ['CYAN'], 'suv': ['GREEN'], 'moto': ['YELLOW'], 'future': ['PURPLE'], 'retro': ['RED'] },
+            selColor: { 'sport': 'CYAN', 'suv': 'GREEN', 'moto': 'YELLOW', 'future': 'PURPLE', 'retro': 'RED' }
+        };
         var score = 0, speed = 0, roadOffset = 0, starField = [], particles = [], bullets = [];
         var buildings = [];
         var reviveUsed = false;
 
-        try { var raw = storage.get('neonDataV13'); if (raw) saved = JSON.parse(raw); } catch (e) { }
+        try { var raw = storage.get('neonDataV14'); if (raw) saved = JSON.parse(raw); } catch (e) { }
+        // Migration for old saves
+        if (!saved.ownColors) saved.ownColors = { 'sport': ['CYAN'], 'suv': ['GREEN'], 'moto': ['YELLOW'], 'future': ['PURPLE'], 'retro': ['RED'] };
+        if (!saved.selColor) saved.selColor = { 'sport': 'CYAN', 'suv': 'GREEN', 'moto': 'YELLOW', 'future': 'PURPLE', 'retro': 'RED' };
+
         var T = LANG[saved.lang];
 
         // SES
@@ -160,12 +170,13 @@
             else if (t === 'shoot') { o.type = 'square'; o.freq(800, 400, 0.1); g.env(0.2 * v, 0.1); o.play(0.1); }
             else if (t === 'select') { o.type = 'triangle'; o.freq(600, 600, 0.05); g.env(0.1 * v, 0.05); o.play(0.05); }
             else if (t === 'powerup') { o.freq(400, 800, 0.2); g.env(0.3 * v, 0.2); o.play(0.2); }
+            else if (t === 'error') { o.type = 'sawtooth'; o.freq(200, 100, 0.2); g.env(0.5 * v, 0.2); o.play(0.2); }
         }
         OscillatorNode.prototype.freq = function (s, e, t) { this.frequency.setValueAtTime(s, audioCtx.currentTime); this.frequency.exponentialRampToValueAtTime(e, audioCtx.currentTime + t); };
         OscillatorNode.prototype.play = function (t) { this.start(audioCtx.currentTime); this.stop(audioCtx.currentTime + t); };
         GainNode.prototype.env = function (v, t) { this.gain.setValueAtTime(v, audioCtx.currentTime); this.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + t); };
 
-        // TTS (Text to Speech)
+        // TTS
         function speak(text) {
             if (!window.speechSynthesis || saved.vol === 0) return;
             window.speechSynthesis.cancel();
@@ -177,17 +188,15 @@
         }
 
         window.onload = function () {
-            // FORCE UPDATE v13.0
-            var V = 'v13.0';
+            var V = 'v14.0';
             if (storage.get('ver') !== V) {
                 storage.set('ver', V);
                 if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function (r) { r.forEach(function (i) { i.unregister() }) });
                 if (window.caches) caches.keys().then(function (n) { n.forEach(function (i) { caches.delete(i) }) });
-                alert("SİSTEM GÜNCELLENİYOR (v13.0)\nSesli Emoji Testi Yükleniyor...");
+                alert("SİSTEM GÜNCELLENİYOR (v14.0)\nBoyama Atölyesi Açılıyor...");
                 setTimeout(function () { window.location.reload(true); }, 500);
                 return;
             }
-
             cvs = document.getElementById('gameCanvas'); ctx = cvs.getContext('2d');
             for (var i = 0; i < 60; i++) starField.push({ x: Math.random(), y: Math.random(), s: Math.random() * 2 });
             for (var i = 0; i < 20; i++) buildings.push({ x: Math.random() * 1000, w: 30 + Math.random() * 50, h: 50 + Math.random() * 150, c: Math.random() });
@@ -231,9 +240,19 @@
                 if (y > 500 && y < 550) { saved.lowQ = !saved.lowQ; playSound('select'); }
             } else if (state === 'garage') {
                 if (y < 150 && x < 150) { playSound('select'); state = 'menu'; return; }
-                if (y > h - 120) buy();
-                else if (x < 150 && y > h / 2 - 100 && y < h / 2 + 100) { playSound('select'); garageNav(-1); }
-                else if (x > w - 150 && y > h / 2 - 100 && y < h / 2 + 100) { playSound('select'); garageNav(1); }
+                if (y > h - 100) buy();
+                else if (x < 50 && y > h / 2 - 100 && y < h / 2 + 100) { playSound('select'); garageNav(-1); }
+                else if (x > w - 50 && y > h / 2 - 100 && y < h / 2 + 100) { playSound('select'); garageNav(1); }
+                // Color Selection
+                else if (y > h / 2 + 80 && y < h / 2 + 140) {
+                    var startX = w / 2 - (COLOR_KEYS.length * 35) / 2;
+                    for (var i = 0; i < COLOR_KEYS.length; i++) {
+                        if (x > startX + i * 35 && x < startX + i * 35 + 30) {
+                            buyColor(COLOR_KEYS[i]);
+                            break;
+                        }
+                    }
+                }
             } else if (state === 'gameover') { state = 'menu'; }
         }
 
@@ -256,10 +275,8 @@
             var langKey = saved.lang === 'TR' ? 'tr' : 'en';
             var correctText = correct[langKey];
 
-            // TEXT QUESTION
             document.getElementById('quiz-question').innerText = T.q_prefix + "\n" + correctText.toUpperCase();
 
-            // EMOJI BUTTONS
             var d = document.getElementById('quiz-answers'); d.innerHTML = "";
             var btn1 = `<div class="quiz-btn" onclick="quizAns('${correct.e}', '${correct.e}')">${correct.e}</div>`;
             var btn2 = `<div class="quiz-btn" onclick="quizAns('WRONG', '${correct.e}')">${wrong.e}</div>`;
@@ -267,7 +284,6 @@
             d.innerHTML = Math.random() > 0.5 ? btn1 + btn2 : btn2 + btn1;
             document.getElementById('quiz-overlay').style.display = 'flex';
 
-            // SPEAK
             var speakText = T.speak_prefix + " " + correctText + "?";
             speak(speakText);
         }
@@ -323,35 +339,68 @@
 
         function check(arr, d, cb) { for (var i = arr.length - 1; i >= 0; i--) { arr[i].y += speed; if (Math.abs(arr[i].x - player.x) < d && Math.abs(arr[i].y - player.y) < d) { if (cb(arr[i], i)) arr.splice(i, 1); } else if (arr[i].y > h + 50) arr.splice(i, 1); } }
         function addExplosion(x, y, c) { if (saved.lowQ) return; for (var i = 0; i < 20; i++) particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 15, vy: (Math.random() - 0.5) * 15, life: 40, c: c }); }
-        function save() { storage.set('neonDataV13', JSON.stringify(saved)); }
+        function save() { storage.set('neonDataV14', JSON.stringify(saved)); }
         function glow(b, c) { if (saved.lowQ) { ctx.shadowBlur = 0; return; } ctx.shadowBlur = b; ctx.shadowColor = c || C.CYAN; }
 
         // --- DRAWING ---
-        function drawPlayer(x, y, t, s) {
+        function drawPlayer(x, y, t, s, colOverride) {
             if (!s) s = 1; ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
-            glow(30, C.CYAN); ctx.lineWidth = 2;
-            if (t === 'sport') {
-                ctx.fillStyle = '#050510'; ctx.strokeStyle = C.CYAN;
-                ctx.beginPath(); ctx.moveTo(0, -40); ctx.quadraticCurveTo(15, -30, 20, -10); ctx.lineTo(22, 20); ctx.quadraticCurveTo(25, 30, 20, 40); ctx.lineTo(0, 35); ctx.lineTo(-20, 40); ctx.quadraticCurveTo(-25, 30, -22, 20); ctx.lineTo(-20, -10); ctx.quadraticCurveTo(-15, -30, 0, -40); ctx.closePath(); ctx.fill(); ctx.stroke();
-                glow(10, C.PINK); ctx.strokeStyle = C.PINK; ctx.beginPath(); ctx.moveTo(-20, -10); ctx.lineTo(-20, 30); ctx.moveTo(20, -10); ctx.lineTo(20, 30); ctx.stroke();
-            } else if (t === 'suv') {
-                ctx.fillStyle = '#101010'; ctx.strokeStyle = C.GREEN; ctx.lineWidth = 3;
-                ctx.beginPath(); ctx.moveTo(-25, -40); ctx.lineTo(25, -40); ctx.lineTo(25, 40); ctx.lineTo(-25, 40); ctx.closePath(); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = C.GREEN; ctx.fillRect(-28, -35, 6, 20); ctx.fillRect(22, -35, 6, 20); ctx.fillRect(-28, 20, 6, 20); ctx.fillRect(22, 20, 6, 20);
-            } else if (t === 'moto') {
-                ctx.shadowColor = C.YELLOW; ctx.lineWidth = 4; ctx.strokeStyle = C.YELLOW;
-                ctx.beginPath(); ctx.moveTo(0, -35); ctx.lineTo(0, 35); ctx.stroke();
-                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, 0, 10, 25, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-            } else if (t === 'future') {
-                ctx.fillStyle = '#000'; ctx.strokeStyle = C.PURPLE;
-                ctx.beginPath(); ctx.moveTo(0, -45); ctx.quadraticCurveTo(30, -10, 0, 35); ctx.quadraticCurveTo(-30, -10, 0, -45); ctx.fill(); ctx.stroke();
-                glow(20, C.PURPLE); ctx.fillStyle = C.PURPLE; ctx.beginPath(); ctx.arc(-15, 25, 4, 0, 7); ctx.arc(15, 25, 4, 0, 7); ctx.fill();
-            } else {
-                ctx.fillStyle = '#220022'; ctx.strokeStyle = C.RED;
-                ctx.fillRect(-22, -35, 44, 70); ctx.strokeRect(-22, -35, 44, 70);
-                ctx.beginPath(); for (var i = 0; i < 6; i++) { ctx.moveTo(-22, -35 + i * 12); ctx.lineTo(22, -35 + i * 12); } ctx.stroke();
+            var col = colOverride || C[saved.selColor[t] || VEHICLES[t].defCol];
+            glow(30, col); ctx.lineWidth = 2; ctx.strokeStyle = col; ctx.fillStyle = "#000";
+
+            if (t === 'sport') { // Neon GT (Improved)
+                ctx.beginPath();
+                ctx.moveTo(0, -45); ctx.lineTo(15, -35); ctx.lineTo(18, -15);
+                ctx.lineTo(22, 20); ctx.lineTo(25, 25); ctx.lineTo(20, 42);
+                ctx.lineTo(0, 38); ctx.lineTo(-20, 42); ctx.lineTo(-25, 25);
+                ctx.lineTo(-22, 20); ctx.lineTo(-18, -15); ctx.lineTo(-15, -35);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+                // Spoiler
+                ctx.beginPath(); ctx.moveTo(-22, 35); ctx.lineTo(22, 35); ctx.lineWidth = 3; ctx.stroke(); ctx.lineWidth = 2;
+                // Lights
+                glow(10, C.WHITE); ctx.fillStyle = C.WHITE; ctx.fillRect(-15, -32, 8, 4); ctx.fillRect(7, -32, 8, 4);
             }
-            if (player.shield > 0) { glow(20, C.GREEN); ctx.strokeStyle = C.GREEN; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 50, 0, 7); ctx.stroke(); }
+            else if (t === 'suv') { // Tank 3000 (Improved)
+                ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.rect(-25, -40, 50, 80); ctx.fill(); ctx.stroke();
+                // Turret
+                ctx.fillStyle = col; ctx.globalAlpha = 0.3; ctx.fillRect(-15, -20, 30, 40); ctx.globalAlpha = 1;
+                // Treads
+                ctx.fillStyle = col;
+                ctx.fillRect(-30, -35, 6, 20); ctx.fillRect(24, -35, 6, 20);
+                ctx.fillRect(-30, 15, 6, 20); ctx.fillRect(24, 15, 6, 20);
+                // Roof Lights
+                ctx.fillStyle = C.YELLOW; ctx.fillRect(-10, -35, 20, 5);
+            }
+            else if (t === 'moto') { // Tron Bike (Improved)
+                ctx.shadowColor = col; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(0, -40); ctx.lineTo(0, 40); ctx.stroke();
+                ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+                // Trail effect
+                if (!colOverride) { glow(20, col); ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.moveTo(0, 40); ctx.lineTo(0, 60); ctx.stroke(); ctx.globalAlpha = 1; }
+            }
+            else if (t === 'future') { // UFO-X (Improved)
+                ctx.strokeStyle = col; ctx.fillStyle = '#1a0b2e';
+                ctx.beginPath(); ctx.ellipse(0, 0, 30, 30, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, -35); ctx.lineTo(0, 35); ctx.moveTo(-35, 0); ctx.lineTo(35, 0); ctx.stroke();
+                // Rotating lights
+                var r = (Date.now() / 500) % (Math.PI * 2);
+                ctx.fillStyle = col; ctx.beginPath(); ctx.arc(Math.cos(r) * 20, Math.sin(r) * 20, 5, 0, Math.PI * 2); ctx.fill();
+            }
+            else { // Delorean (Improved)
+                ctx.fillStyle = '#222';
+                ctx.fillRect(-22, -40, 44, 80); ctx.strokeRect(-22, -40, 44, 80);
+                // Gullwing doors
+                ctx.beginPath(); ctx.moveTo(-22, -10); ctx.lineTo(-10, -20); ctx.lineTo(-10, 20); ctx.lineTo(-22, 10); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(22, -10); ctx.lineTo(10, -20); ctx.lineTo(10, 20); ctx.lineTo(22, 10); ctx.stroke();
+                // Rear vents
+                ctx.fillStyle = col; for (var i = 0; i < 4; i++) ctx.fillRect(-15, 25 + i * 4, 30, 2);
+            }
+
+            // Engine Glow
+            if (!colOverride) { glow(20, C.CYAN); ctx.fillStyle = C.CYAN; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill(); }
+            if (player.shield > 0) { glow(20, C.GREEN); ctx.strokeStyle = C.GREEN; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 55, 0, Math.PI * 2); ctx.stroke(); }
             ctx.restore(); glow(0);
         }
 
@@ -362,10 +411,14 @@
                 ctx.fillStyle = C.WHITE; starField.forEach(function (s) { ctx.globalAlpha = Math.random() * 0.5 + 0.3; ctx.beginPath(); ctx.arc(s.x * w, s.y * h, s.s, 0, 7); ctx.fill(); }); ctx.globalAlpha = 1;
             }
             var rw = Math.min(w, 500) * 0.9, rl = (w - rw) / 2, grad = ctx.createLinearGradient(0, 0, 0, h); grad.addColorStop(0, '#000'); grad.addColorStop(1, '#2a2a40');
+            // Road Glow based on Player Color
+            var pCol = C[saved.selColor[saved.cur] || 'CYAN'];
             ctx.fillStyle = grad; ctx.fillRect(rl, 0, rw, h);
-            glow(20, C.PINK); ctx.strokeStyle = C.PINK; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(rl, 0); ctx.lineTo(rl, h); ctx.moveTo(rl + rw, 0); ctx.lineTo(rl + rw, h); ctx.stroke(); glow(0);
-            if (!saved.lowQ) { ctx.strokeStyle = 'rgba(0,255,255,0.2)'; ctx.lineWidth = 1; var gy = (Date.now() / 5) % 40; for (var i = 0; i < h; i += 40) { var y = i + gy; if (y > h) y -= h; ctx.beginPath(); ctx.moveTo(rl, y); ctx.lineTo(rl + rw, y); ctx.stroke(); } }
-            var lw = rw / 3; ctx.strokeStyle = C.CYAN; ctx.lineWidth = 2; glow(10, C.CYAN); for (var i = 1; i < 3; i++) { var lx = rl + lw * i; ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, h); ctx.stroke(); } glow(0);
+            glow(20, pCol); ctx.strokeStyle = pCol; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(rl, 0); ctx.lineTo(rl, h); ctx.moveTo(rl + rw, 0); ctx.lineTo(rl + rw, h); ctx.stroke(); glow(0);
+
+            if (!saved.lowQ) { ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1; var gy = (Date.now() / 5) % 40; for (var i = 0; i < h; i += 40) { var y = i + gy; if (y > h) y -= h; ctx.beginPath(); ctx.moveTo(rl, y); ctx.lineTo(rl + rw, y); ctx.stroke(); } }
+            var lw = rw / 3; ctx.strokeStyle = pCol; ctx.lineWidth = 2; ctx.globalAlpha = 0.5; for (var i = 1; i < 3; i++) { var lx = rl + lw * i; ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, h); ctx.stroke(); } ctx.globalAlpha = 1;
+
             bullets.forEach(function (b) { glow(10, C.YELLOW); ctx.strokeStyle = C.YELLOW; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x, b.y + 15); ctx.stroke(); });
             if (state === 'menu') drawMenu(); else if (state === 'settings') drawSettings(); else if (state === 'garage') drawGarage(); else if (state === 'playing' || state === 'quiz') drawGame(); else if (state === 'gameover') drawGameOver();
         }
@@ -414,15 +467,77 @@
         var gIdx = 0; function garageNav(d) { var k = Object.keys(VEHICLES); gIdx += d; if (gIdx < 0) gIdx = k.length - 1; if (gIdx >= k.length) gIdx = 0; }
         function buy() { var k = Object.keys(VEHICLES), id = k[gIdx]; if (saved.cars.includes(id)) { playSound('select'); saved.cur = id; save(); } else if (saved.coins >= VEHICLES[id].price) { playSound('coin'); saved.coins -= VEHICLES[id].price; saved.cars.push(id); saved.cur = id; save(); } }
 
+        function buyColor(key) {
+            if (!saved.cars.includes(Object.keys(VEHICLES)[gIdx])) return; // Must satisfy car first
+            var car = Object.keys(VEHICLES)[gIdx]; // Currently viewed car
+
+            // Check if owned
+            if (saved.ownColors[car].includes(key)) {
+                saved.selColor[car] = key;
+                playSound('select');
+                save();
+            } else {
+                // Try buying
+                var price = COLOR_PRICES[key];
+                if (saved.coins >= price) {
+                    saved.coins -= price;
+                    saved.ownColors[car].push(key);
+                    saved.selColor[car] = key;
+                    playSound('coin');
+                    save();
+                } else {
+                    playSound('error');
+                }
+            }
+        }
+
         function drawGarage() {
             ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h); var cx = w / 2, k = Object.keys(VEHICLES), id = k[gIdx], v = VEHICLES[id], own = saved.cars.includes(id), sel = saved.cur === id;
+            var curCarColor = C[saved.selColor[id]];
+
             ctx.textAlign = "center"; ctx.fillStyle = C.YELLOW; ctx.font = "30px Arial"; ctx.fillText(T.garage, cx, 60); ctx.fillText("$ " + saved.coins, cx, 100);
-            drawPlayer(cx, h / 2 - 50, id, 2.5);
-            glow(10, C.WHITE); ctx.fillStyle = "#fff"; ctx.font = "30px Arial"; ctx.fillText(v.name, cx, h / 2 - 150); glow(0);
-            ctx.fillStyle = C.CYAN; ctx.font = "16px Arial"; ctx.fillText(T.speed + ": " + (v.speed * 10) + "/15", cx, h / 2 + 60);
+
+            // Draw Preview with Selected Color
+            drawPlayer(cx, h / 2 - 60, id, 2.5);
+
+            glow(10, C.WHITE); ctx.fillStyle = "#fff"; ctx.font = "30px Arial"; ctx.fillText(v.name, cx, h / 2 - 160); glow(0);
+            ctx.fillStyle = C.CYAN; ctx.font = "16px Arial"; ctx.fillText(T.speed + ": " + (v.speed * 10) + "/15", cx, h / 2 + 40);
+
+            // Navigation Arrows
             ctx.fillStyle = "#fff"; ctx.font = "40px Arial"; ctx.fillText("<", 40, h / 2); ctx.fillText(">", w - 40, h / 2);
+
+            // Main Buy/Equip Button
             var col = C.RED, txt = T.buy + " (" + v.price + ")"; if (own) { col = sel ? C.GREEN : C.BLUE; txt = sel ? T.equipped : T.equip; } else if (saved.coins >= v.price) col = C.YELLOW;
-            glow(15, col); ctx.fillStyle = col; ctx.fillRect(cx - 100, h - 120, 200, 60); ctx.fillStyle = "#000"; ctx.font = "bold 24px Arial"; ctx.fillText(txt, cx, h - 82); glow(0);
+            glow(15, col); ctx.fillStyle = col; ctx.fillRect(cx - 100, h - 80, 200, 60); ctx.fillStyle = "#000"; ctx.font = "bold 24px Arial"; ctx.fillText(txt, cx, h - 40); glow(0);
+
+            // Color Palette
+            if (own) {
+                var startX = cx - (COLOR_KEYS.length * 35) / 2;
+                var yPos = h / 2 + 100;
+                ctx.textAlign = "center"; ctx.font = "14px Arial"; ctx.fillStyle = "#fff"; ctx.fillText(T.color, cx, yPos - 15);
+
+                for (var i = 0; i < COLOR_KEYS.length; i++) {
+                    var k = COLOR_KEYS[i];
+                    var c = C[k];
+                    var isOwned = saved.ownColors[id].includes(k);
+                    var isSel = saved.selColor[id] === k;
+
+                    ctx.fillStyle = c;
+                    ctx.fillRect(startX + i * 35, yPos, 30, 30);
+
+                    // Selection Border
+                    if (isSel) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.strokeRect(startX + i * 35, yPos, 30, 30); }
+
+                    // Price or Lock
+                    if (!isOwned) {
+                        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(startX + i * 35, yPos, 30, 30);
+                        ctx.fillStyle = "#fff"; ctx.font = "10px Arial"; ctx.fillText(COLOR_PRICES[k], startX + i * 35 + 15, yPos + 18);
+                    }
+                }
+            } else {
+                ctx.fillStyle = "#555"; ctx.font = "14px Arial"; ctx.fillText("SATIN ALARAK RENK DEĞİŞTİR", cx, h / 2 + 110);
+            }
+
             ctx.textAlign = "left"; ctx.fillStyle = "#fff"; ctx.font = "20px Arial"; ctx.fillText("🔙", 30, 40);
         }
     </script>
