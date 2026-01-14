@@ -1,7 +1,6 @@
 /**
- * NEON DRIFT - Web Version
+ * NEON DRIFT - Full Web Version
  * Cyberpunk Endless Runner Game
- * HTML5 Canvas + JavaScript
  */
 
 // ============ CONSTANTS ============
@@ -19,45 +18,133 @@ const COLORS = {
     DARK_GRAY: '#1e1e28'
 };
 
-const GAME_CONFIG = {
-    LANE_COUNT: 3,
-    INITIAL_SPEED: 5,
-    MAX_SPEED: 20,
-    SPEED_INCREMENT: 0.003,
-    OBSTACLE_SPAWN_RATE: 90,
-    POWERUP_SPAWN_RATE: 400,
-    COIN_SPAWN_RATE: 150,
-    PLAYER_WIDTH: 40,
-    PLAYER_HEIGHT: 70
+const VEHICLES = {
+    sport: { name: "Spor", price: 0, desc: "Standart Hız" },
+    suv: { name: "SUV", price: 300, desc: "Daha Dayanıklı" },
+    moto: { name: "Motor", price: 400, desc: "Çevik" },
+    future: { name: "Gelecek", price: 600, desc: "Maksimum Hız" },
+    retro: { name: "Retro", price: 500, desc: "Klasik Stil" }
+};
+
+const THEMES = {
+    default: { name: "Varsayılan", price: 0, primary: COLORS.NEON_CYAN, secondary: COLORS.NEON_PINK },
+    ocean: { name: "Okyanus", price: 100, primary: COLORS.NEON_BLUE, secondary: COLORS.NEON_CYAN },
+    emerald: { name: "Zümrüt", price: 150, primary: COLORS.NEON_GREEN, secondary: COLORS.NEON_CYAN },
+    fire: { name: "Ateş", price: 200, primary: COLORS.NEON_RED, secondary: COLORS.NEON_ORANGE },
+    gold: { name: "Altın", price: 250, primary: COLORS.NEON_YELLOW, secondary: COLORS.NEON_ORANGE },
+    rainbow: { name: "Gökkuşağı", price: 500, primary: null, secondary: null } // Special
 };
 
 const STATES = {
     MENU: 'menu',
+    GARAGE: 'garage',
     PLAYING: 'playing',
     PAUSED: 'paused',
     GAMEOVER: 'gameover'
 };
+
+// ============ GARAGE SYSTEM ============
+class GarageManager {
+    constructor() {
+        this.loadData();
+    }
+
+    loadData() {
+        const data = JSON.parse(localStorage.getItem('neonDriftData')) || {
+            coins: 0,
+            ownedVehicles: ['sport'],
+            ownedColors: ['default'],
+            currentVehicle: 'sport',
+            currentColor: 'default',
+            highScore: 0
+        };
+        this.data = data;
+    }
+
+    saveData() {
+        localStorage.setItem('neonDriftData', JSON.stringify(this.data));
+    }
+
+    addCoins(amount) {
+        this.data.coins += amount;
+        this.saveData();
+    }
+
+    buyVehicle(id) {
+        const vehicle = VEHICLES[id];
+        if (this.data.coins >= vehicle.price && !this.data.ownedVehicles.includes(id)) {
+            this.data.coins -= vehicle.price;
+            this.data.ownedVehicles.push(id);
+            this.saveData();
+            return true;
+        }
+        return false;
+    }
+
+    buyColor(id) {
+        const color = THEMES[id];
+        if (this.data.coins >= color.price && !this.data.ownedColors.includes(id)) {
+            this.data.coins -= color.price;
+            this.data.ownedColors.push(id);
+            this.saveData();
+            return true;
+        }
+        return false;
+    }
+
+    selectVehicle(id) {
+        if (this.data.ownedVehicles.includes(id)) {
+            this.data.currentVehicle = id;
+            this.saveData();
+        }
+    }
+
+    selectColor(id) {
+        if (this.data.ownedColors.includes(id)) {
+            this.data.currentColor = id;
+            this.saveData();
+        }
+    }
+
+    getCurrentColors() {
+        const themeId = this.data.currentColor;
+        if (themeId === 'rainbow') {
+            const hue = (Date.now() / 20) % 360;
+            return {
+                primary: `hsl(${hue}, 100%, 50%)`,
+                secondary: `hsl(${(hue + 180) % 360}, 100%, 50%)`
+            };
+        }
+        return {
+            primary: THEMES[themeId].primary,
+            secondary: THEMES[themeId].secondary
+        };
+    }
+}
 
 // ============ GAME CLASS ============
 class NeonDrift {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
+        this.garage = new GarageManager();
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
 
-        // Game state
         this.state = STATES.MENU;
         this.score = 0;
-        this.highScore = parseInt(localStorage.getItem('neonDriftHighScore')) || 0;
-        this.coins = parseInt(localStorage.getItem('neonDriftCoins')) || 0;
-        this.gameSpeed = GAME_CONFIG.INITIAL_SPEED;
+        this.speed = 5;
+        this.roadOffset = 0;
 
-        // Road dimensions
-        this.roadWidth = this.canvas.width * 0.8;
-        this.roadLeft = (this.canvas.width - this.roadWidth) / 2;
-        this.laneWidth = this.roadWidth / GAME_CONFIG.LANE_COUNT;
+        // Touch
+        this.touchStartX = 0;
+        this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+        this.canvas.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
+        this.canvas.addEventListener('click', (e) => this.handleClick(e));
+
+        // Keyboard
+        document.addEventListener('keydown', (e) => this.handleKey(e));
 
         // Player
         this.player = {
@@ -65,488 +152,372 @@ class NeonDrift {
             targetLane: 1,
             x: 0,
             y: 0,
-            width: GAME_CONFIG.PLAYER_WIDTH,
-            height: GAME_CONFIG.PLAYER_HEIGHT,
             moving: false,
             moveProgress: 0,
-            shieldActive: false,
-            shieldTimer: 0,
-            color: COLORS.NEON_CYAN
+            shield: 0
         };
-        this.updatePlayerPosition();
 
-        // Game objects
+        // Objects
         this.obstacles = [];
+        this.coins = [];
         this.powerups = [];
-        this.coins_list = [];
         this.particles = [];
-        this.stars = [];
+        this.timers = { obstacle: 0, coin: 0, powerup: 0 };
 
-        // Timers
-        this.obstacleTimer = 0;
-        this.powerupTimer = 0;
-        this.coinTimer = 0;
+        // Menu/Garage UI state
+        this.garageTab = 0; // 0: Vehicles, 1: Colors
+        this.garageIndex = 0;
 
-        // Road stripes
-        this.roadOffset = 0;
-
-        // Create stars
-        this.createStars();
-
-        // Setup controls
-        this.setupControls();
-
-        // Animation
-        this.animationFrame = 0;
-
-        // Start game loop
-        this.lastTime = 0;
-        requestAnimationFrame((t) => this.gameLoop(t));
+        requestAnimationFrame((t) => this.loop(t));
     }
 
     resize() {
-        const container = document.getElementById('game-container');
-        const maxWidth = 450;
-        const maxHeight = window.innerHeight;
+        // Keep 9:16 aspect ratio or fill screen
+        const aspect = 9 / 16;
+        let w = window.innerWidth;
+        let h = window.innerHeight;
 
-        let width = Math.min(window.innerWidth, maxWidth);
-        let height = maxHeight;
-
-        // Maintain aspect ratio
-        const aspectRatio = 9 / 16;
-        if (width / height > aspectRatio) {
-            width = height * aspectRatio;
+        if (w / h > aspect) {
+            w = h * aspect;
         }
 
-        this.canvas.width = width;
-        this.canvas.height = height;
+        this.canvas.width = w;
+        this.canvas.height = h;
 
-        // Update road dimensions
-        this.roadWidth = this.canvas.width * 0.75;
-        this.roadLeft = (this.canvas.width - this.roadWidth) / 2;
-        this.laneWidth = this.roadWidth / GAME_CONFIG.LANE_COUNT;
+        this.roadWidth = w * 0.8;
+        this.roadLeft = (w - this.roadWidth) / 2;
+        this.laneWidth = this.roadWidth / 3;
 
-        this.updatePlayerPosition();
+        this.player.y = h - 120;
+        this.player.x = this.getLaneX(this.player.lane);
     }
 
-    createStars() {
-        this.stars = [];
-        for (let i = 0; i < 50; i++) {
-            this.stars.push({
-                x: Math.random() * this.canvas.width,
-                y: Math.random() * this.canvas.height,
-                size: Math.random() * 2 + 1,
-                speed: Math.random() * 1 + 0.5,
-                brightness: Math.random() * 100 + 50
-            });
-        }
+    getLaneX(lane) {
+        return this.roadLeft + this.laneWidth * lane + this.laneWidth / 2;
     }
 
-    setupControls() {
-        // Touch controls
-        const leftZone = document.getElementById('left-zone');
-        const rightZone = document.getElementById('right-zone');
-        const leftIndicator = document.getElementById('left-indicator');
-        const rightIndicator = document.getElementById('right-indicator');
+    // --- INPUT HANDLING ---
+    handleTouchStart(e) {
+        e.preventDefault();
+        this.touchStartX = e.touches[0].clientX;
 
-        leftZone.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            leftIndicator.classList.add('active');
-            this.handleInput('left');
-        });
-
-        leftZone.addEventListener('touchend', () => {
-            leftIndicator.classList.remove('active');
-        });
-
-        rightZone.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            rightIndicator.classList.add('active');
-            this.handleInput('right');
-        });
-
-        rightZone.addEventListener('touchend', () => {
-            rightIndicator.classList.remove('active');
-        });
-
-        // Keyboard controls
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft' || e.key === 'a') {
-                this.handleInput('left');
-                document.getElementById('left-indicator').classList.add('active');
-            } else if (e.key === 'ArrowRight' || e.key === 'd') {
-                this.handleInput('right');
-                document.getElementById('right-indicator').classList.add('active');
-            } else if (e.key === ' ' || e.key === 'Enter') {
-                this.handleInput('action');
-            } else if (e.key === 'Escape') {
-                this.handleInput('pause');
-            }
-        });
-
-        document.addEventListener('keyup', (e) => {
-            if (e.key === 'ArrowLeft' || e.key === 'a') {
-                document.getElementById('left-indicator').classList.remove('active');
-            } else if (e.key === 'ArrowRight' || e.key === 'd') {
-                document.getElementById('right-indicator').classList.remove('active');
-            }
-        });
-
-        // Canvas click for menu
-        this.canvas.addEventListener('click', () => {
-            if (this.state === STATES.MENU || this.state === STATES.GAMEOVER) {
-                this.handleInput('action');
-            }
-        });
-    }
-
-    handleInput(direction) {
+        // Menu/Garage taps
         if (this.state === STATES.MENU) {
-            this.startGame();
-        } else if (this.state === STATES.PLAYING) {
-            if (direction === 'left' && this.player.lane > 0 && !this.player.moving) {
-                this.player.targetLane = this.player.lane - 1;
-                this.player.moving = true;
-                this.player.moveProgress = 0;
-            } else if (direction === 'right' && this.player.lane < GAME_CONFIG.LANE_COUNT - 1 && !this.player.moving) {
-                this.player.targetLane = this.player.lane + 1;
-                this.player.moving = true;
-                this.player.moveProgress = 0;
-            } else if (direction === 'pause') {
-                this.state = STATES.PAUSED;
+            const y = e.touches[0].clientY;
+            // Garage button area (top left/right)
+            if (y < 100 && e.touches[0].clientX > this.canvas.width - 60) {
+                this.state = STATES.GARAGE;
+                return;
             }
-        } else if (this.state === STATES.PAUSED) {
-            if (direction === 'pause' || direction === 'action') {
-                this.state = STATES.PLAYING;
+            this.startGame();
+        } else if (this.state === STATES.GAMEOVER) {
+            this.state = STATES.MENU;
+        } else if (this.state === STATES.GARAGE) {
+            // Simple tap zones for garage
+            const x = e.touches[0].clientX;
+            const y = e.touches[0].clientY;
+            const w = this.canvas.width;
+            const h = this.canvas.height;
+
+            // Back button
+            if (y < 60 && x < 60) {
+                this.state = STATES.MENU;
+                return;
+            }
+
+            // Tab switch
+            if (y > 80 && y < 140) {
+                this.garageTab = x < w / 2 ? 0 : 1;
+                this.garageIndex = 0;
+                return;
+            }
+
+            // Arrows
+            if (y > h / 2 && y < h / 2 + 100) {
+                if (x < 80) this.garageNav(-1);
+                else if (x > w - 80) this.garageNav(1);
+            }
+
+            // Buy/Select button
+            if (y > h - 150) {
+                this.garageAction();
+            }
+        }
+    }
+
+    handleTouchEnd(e) {
+        e.preventDefault();
+        const endX = e.changedTouches[0].clientX;
+        const diff = endX - this.touchStartX;
+
+        if (this.state === STATES.PLAYING) {
+            if (Math.abs(diff) > 30) {
+                if (diff < 0) this.movePlayer(-1);
+                else this.movePlayer(1);
+            }
+        }
+    }
+
+    handleKey(e) {
+        if (this.state === STATES.PLAYING) {
+            if (e.key === 'ArrowLeft') this.movePlayer(-1);
+            if (e.key === 'ArrowRight') this.movePlayer(1);
+        } else if (this.state === STATES.MENU) {
+            if (e.key === 'Enter') this.startGame();
+            if (e.key === 'g') this.state = STATES.GARAGE;
+        } else if (this.state === STATES.GARAGE) {
+            if (e.key === 'Escape') this.state = STATES.MENU;
+            if (e.key === 'ArrowLeft') this.garageNav(-1);
+            if (e.key === 'ArrowRight') this.garageNav(1);
+            if (e.key === 'Enter') this.garageAction();
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                this.garageTab = 1 - this.garageTab;
+                this.garageIndex = 0;
             }
         } else if (this.state === STATES.GAMEOVER) {
-            this.startGame();
+            if (e.key === 'Enter') this.state = STATES.MENU;
+        }
+    }
+
+    handleClick(e) {
+        // Desktop mouse clicks
+        if (this.state === STATES.GARAGE) {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Logic similar to touch
+            if (y < 60 && x < 60) { this.state = STATES.MENU; return; }
+            if (y > 80 && y < 140) { this.garageTab = x < this.canvas.width / 2 ? 0 : 1; this.garageIndex = 0; return; }
+            if (y > this.canvas.height / 2 && y < this.canvas.height / 2 + 100) {
+                if (x < 80) this.garageNav(-1);
+                else if (x > this.canvas.width - 80) this.garageNav(1);
+            }
+            if (y > this.canvas.height - 150) this.garageAction();
+        } else if (this.state === STATES.MENU) {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            if (y < 100 && x > this.canvas.width - 60) {
+                this.state = STATES.GARAGE;
+            } else {
+                this.startGame();
+            }
+        }
+    }
+
+    // --- GAME LOGIC ---
+    movePlayer(dir) {
+        const newLane = this.player.lane + dir;
+        if (newLane >= 0 && newLane <= 2 && !this.player.moving) {
+            this.player.targetLane = newLane;
+            this.player.moving = true;
+            this.player.moveProgress = 0;
         }
     }
 
     startGame() {
         this.state = STATES.PLAYING;
         this.score = 0;
-        this.gameSpeed = GAME_CONFIG.INITIAL_SPEED;
+        this.speed = 5;
         this.player.lane = 1;
         this.player.targetLane = 1;
-        this.player.shieldActive = false;
+        this.player.x = this.getLaneX(1);
         this.player.moving = false;
-        this.updatePlayerPosition();
+        this.player.shield = 0;
 
         this.obstacles = [];
+        this.coins = [];
         this.powerups = [];
-        this.coins_list = [];
         this.particles = [];
-
-        this.obstacleTimer = 0;
-        this.powerupTimer = 0;
-        this.coinTimer = 0;
     }
 
     gameOver() {
         this.state = STATES.GAMEOVER;
+        if (this.score > this.garage.data.highScore) {
+            this.garage.data.highScore = Math.floor(this.score);
+            this.garage.saveData();
+        }
+        // Save score as coins (10% conversion)
+        const earned = Math.floor(this.score / 10);
+        this.garage.addCoins(earned);
+    }
 
-        // Save high score
-        if (this.score > this.highScore) {
-            this.highScore = this.score;
-            localStorage.setItem('neonDriftHighScore', this.highScore);
+    spawnObjects() {
+        // Obstacles
+        this.timers.obstacle++;
+        const spawnRate = Math.max(30, 90 - this.speed * 2);
+        if (this.timers.obstacle > spawnRate) {
+            const lane = Math.floor(Math.random() * 3);
+            this.obstacles.push({ x: this.getLaneX(lane), y: -50, w: 40, h: 30 });
+            this.timers.obstacle = 0;
         }
 
-        // Create explosion particles
-        for (let i = 0; i < 30; i++) {
-            this.particles.push({
-                x: this.player.x,
-                y: this.player.y,
-                vx: (Math.random() - 0.5) * 10,
-                vy: (Math.random() - 0.5) * 10,
-                life: 60,
-                color: [COLORS.NEON_PINK, COLORS.NEON_CYAN, COLORS.NEON_RED][Math.floor(Math.random() * 3)],
-                size: Math.random() * 5 + 2
-            });
-        }
-    }
-
-    getLaneCenter(lane) {
-        return this.roadLeft + this.laneWidth * lane + this.laneWidth / 2;
-    }
-
-    updatePlayerPosition() {
-        this.player.x = this.getLaneCenter(this.player.lane);
-        this.player.y = this.canvas.height - 120;
-    }
-
-    // ============ UPDATE ============
-    update(deltaTime) {
-        this.animationFrame++;
-
-        // Update stars
-        this.stars.forEach(star => {
-            star.y += star.speed * (this.state === STATES.PLAYING ? this.gameSpeed / 3 : 1);
-            if (star.y > this.canvas.height) {
-                star.y = 0;
-                star.x = Math.random() * this.canvas.width;
+        // Coins
+        this.timers.coin++;
+        if (this.timers.coin > 60) {
+            if (Math.random() < 0.3) {
+                const lane = Math.floor(Math.random() * 3);
+                this.coins.push({ x: this.getLaneX(lane), y: -30 });
             }
-        });
+            this.timers.coin = 0;
+        }
 
-        // Update road offset
-        this.roadOffset += this.state === STATES.PLAYING ? this.gameSpeed : 2;
-        if (this.roadOffset > 40) this.roadOffset = 0;
+        // Powerups
+        this.timers.powerup++;
+        if (this.timers.powerup > 500) {
+            const lane = Math.floor(Math.random() * 3);
+            const type = Math.random() < 0.5 ? 'shield' : 'slow';
+            this.powerups.push({ x: this.getLaneX(lane), y: -30, type: type });
+            this.timers.powerup = 0;
+        }
+    }
 
-        // Update particles
-        this.particles = this.particles.filter(p => {
-            p.x += p.vx;
-            p.y += p.vy;
-            p.life--;
-            return p.life > 0;
-        });
-
+    update() {
         if (this.state !== STATES.PLAYING) return;
 
-        // Player movement
+        this.speed = Math.min(20, this.speed + 0.002);
+        this.score += this.speed / 10;
+        this.roadOffset = (this.roadOffset + this.speed) % 40;
+
+        // Player move
         if (this.player.moving) {
-            this.player.moveProgress += 12;
-            const startX = this.getLaneCenter(this.player.lane);
-            const endX = this.getLaneCenter(this.player.targetLane);
+            this.player.moveProgress += 15;
+            const start = this.getLaneX(this.player.lane);
+            const end = this.getLaneX(this.player.targetLane);
             const t = Math.min(this.player.moveProgress / 100, 1);
-            const smoothT = t * t * (3 - 2 * t);
-            this.player.x = startX + (endX - startX) * smoothT;
+            this.player.x = start + (end - start) * t; // Linear is safer for mobile
 
             if (this.player.moveProgress >= 100) {
                 this.player.lane = this.player.targetLane;
-                this.player.x = this.getLaneCenter(this.player.lane);
                 this.player.moving = false;
             }
         }
 
-        // Shield timer
-        if (this.player.shieldActive) {
-            this.player.shieldTimer--;
-            if (this.player.shieldTimer <= 0) {
-                this.player.shieldActive = false;
-            }
-        }
+        if (this.player.shield > 0) this.player.shield--;
 
-        // Spawn obstacles
-        this.obstacleTimer++;
-        if (this.obstacleTimer >= GAME_CONFIG.OBSTACLE_SPAWN_RATE - this.gameSpeed * 3) {
-            this.spawnObstacle();
-            this.obstacleTimer = 0;
-        }
+        this.spawnObjects();
 
-        // Spawn coins
-        this.coinTimer++;
-        if (this.coinTimer >= GAME_CONFIG.COIN_SPAWN_RATE) {
-            this.spawnCoin();
-            this.coinTimer = 0;
-        }
+        // Update Obstacles
+        for (let i = this.obstacles.length - 1; i >= 0; i--) {
+            let o = this.obstacles[i];
+            o.y += this.speed;
 
-        // Spawn powerups
-        this.powerupTimer++;
-        if (this.powerupTimer >= GAME_CONFIG.POWERUP_SPAWN_RATE) {
-            this.spawnPowerup();
-            this.powerupTimer = 0;
-        }
-
-        // Update obstacles
-        this.obstacles = this.obstacles.filter(obs => {
-            obs.y += this.gameSpeed;
-
-            // Check collision
-            if (this.checkCollision(this.player, obs)) {
-                if (this.player.shieldActive) {
-                    this.player.shieldActive = false;
-                    this.createExplosion(obs.x, obs.y, COLORS.NEON_GREEN);
-                    return false;
+            if (this.checkCollision(this.player, o, 30)) {
+                if (this.player.shield > 0) {
+                    this.player.shield = 0;
+                    this.obstacles.splice(i, 1);
+                    this.addParticles(o.x, o.y, COLORS.NEON_RED);
                 } else {
                     this.gameOver();
-                    return true;
                 }
+            } else if (o.y > this.canvas.height + 50) {
+                this.obstacles.splice(i, 1);
             }
+        }
 
-            return obs.y < this.canvas.height + 50;
-        });
+        // Update Coins
+        for (let i = this.coins.length - 1; i >= 0; i--) {
+            let c = this.coins[i];
+            c.y += this.speed;
+            if (this.checkCollision(this.player, c, 40)) {
+                this.garage.addCoins(1);
+                this.score += 50;
+                this.coins.splice(i, 1);
+            } else if (c.y > this.canvas.height + 50) this.coins.splice(i, 1);
+        }
 
-        // Update coins
-        this.coins_list = this.coins_list.filter(coin => {
-            coin.y += this.gameSpeed;
-            coin.rotation += 5;
-
-            if (this.checkCollision(this.player, coin)) {
-                this.score += 10;
-                this.coins++;
-                localStorage.setItem('neonDriftCoins', this.coins);
-                this.createExplosion(coin.x, coin.y, COLORS.NEON_YELLOW);
-                return false;
-            }
-
-            return coin.y < this.canvas.height + 30;
-        });
-
-        // Update powerups
-        this.powerups = this.powerups.filter(pw => {
-            pw.y += this.gameSpeed;
-            pw.pulse = (pw.pulse + 0.1) % (Math.PI * 2);
-
-            if (this.checkCollision(this.player, pw)) {
-                this.activatePowerup(pw.type);
-                this.createExplosion(pw.x, pw.y, pw.color);
-                return false;
-            }
-
-            return pw.y < this.canvas.height + 40;
-        });
-
-        // Update score
-        this.score += Math.floor(1 + this.gameSpeed / 5);
-
-        // Increase speed
-        this.gameSpeed = Math.min(GAME_CONFIG.MAX_SPEED, this.gameSpeed + GAME_CONFIG.SPEED_INCREMENT);
-    }
-
-    spawnObstacle() {
-        const lane = Math.floor(Math.random() * GAME_CONFIG.LANE_COUNT);
-        this.obstacles.push({
-            x: this.getLaneCenter(lane),
-            y: -50,
-            width: 50,
-            height: 35,
-            color: COLORS.NEON_RED
-        });
-    }
-
-    spawnCoin() {
-        const lane = Math.floor(Math.random() * GAME_CONFIG.LANE_COUNT);
-        this.coins_list.push({
-            x: this.getLaneCenter(lane),
-            y: -20,
-            width: 20,
-            height: 20,
-            rotation: 0,
-            color: COLORS.NEON_YELLOW
-        });
-    }
-
-    spawnPowerup() {
-        const lane = Math.floor(Math.random() * GAME_CONFIG.LANE_COUNT);
-        const types = ['shield', 'slowmo'];
-        const type = types[Math.floor(Math.random() * types.length)];
-        const colors = {
-            shield: COLORS.NEON_GREEN,
-            slowmo: COLORS.NEON_BLUE
-        };
-
-        this.powerups.push({
-            x: this.getLaneCenter(lane),
-            y: -30,
-            width: 35,
-            height: 35,
-            type: type,
-            color: colors[type],
-            pulse: 0
-        });
-    }
-
-    activatePowerup(type) {
-        if (type === 'shield') {
-            this.player.shieldActive = true;
-            this.player.shieldTimer = 300;
-        } else if (type === 'slowmo') {
-            this.gameSpeed = Math.max(GAME_CONFIG.INITIAL_SPEED, this.gameSpeed - 5);
+        // Powerups
+        for (let i = this.powerups.length - 1; i >= 0; i--) {
+            let p = this.powerups[i];
+            p.y += this.speed;
+            if (this.checkCollision(this.player, p, 40)) {
+                if (p.type === 'shield') this.player.shield = 300;
+                else this.speed = Math.max(5, this.speed - 5);
+                this.powerups.splice(i, 1);
+            } else if (p.y > this.canvas.height + 50) this.powerups.splice(i, 1);
         }
     }
 
-    checkCollision(a, b) {
-        const padding = 8;
-        return a.x - a.width / 2 + padding < b.x + b.width / 2 &&
-            a.x + a.width / 2 - padding > b.x - b.width / 2 &&
-            a.y - a.height / 2 + padding < b.y + b.height / 2 &&
-            a.y + a.height / 2 - padding > b.y - b.height / 2;
+    checkCollision(p, o, dist) {
+        return Math.abs(p.x - o.x) < dist && Math.abs(p.y - o.y) < dist;
     }
 
-    createExplosion(x, y, color) {
-        for (let i = 0; i < 10; i++) {
-            this.particles.push({
-                x: x,
-                y: y,
-                vx: (Math.random() - 0.5) * 8,
-                vy: (Math.random() - 0.5) * 8,
-                life: 30,
-                color: color,
-                size: Math.random() * 4 + 2
-            });
+    addParticles(x, y, color) {
+        // Simple placeholder
+    }
+
+    // --- GARAGE LOGIC ---
+    garageNav(dir) {
+        const list = this.garageTab === 0 ? Object.keys(VEHICLES) : Object.keys(THEMES);
+        let idx = this.garageIndex + dir;
+        if (idx < 0) idx = list.length - 1;
+        if (idx >= list.length) idx = 0;
+        this.garageIndex = idx;
+    }
+
+    garageAction() {
+        const list = this.garageTab === 0 ? Object.keys(VEHICLES) : Object.keys(THEMES);
+        const id = list[this.garageIndex];
+
+        if (this.garageTab === 0) {
+            if (this.garage.data.ownedVehicles.includes(id)) {
+                this.garage.selectVehicle(id);
+            } else {
+                this.garage.buyVehicle(id);
+            }
+        } else {
+            if (this.garage.data.ownedColors.includes(id)) {
+                this.garage.selectColor(id);
+            } else {
+                this.garage.buyColor(id);
+            }
         }
     }
 
-    // ============ DRAW ============
+    // --- DRAWING ---
+    loop(t) {
+        this.update();
+        this.draw();
+        requestAnimationFrame((t) => this.loop(t));
+    }
+
     draw() {
-        // Clear
+        // BG
         this.ctx.fillStyle = COLORS.BLACK;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Draw stars
-        this.stars.forEach(star => {
-            this.ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness / 150})`;
-            this.ctx.beginPath();
-            this.ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-            this.ctx.fill();
-        });
-
-        // Draw road
         this.drawRoad();
 
-        // Draw game objects based on state
-        if (this.state === STATES.MENU) {
-            this.drawMenu();
-        } else if (this.state === STATES.PLAYING || this.state === STATES.PAUSED) {
+        if (this.state === STATES.MENU) this.drawMenu();
+        else if (this.state === STATES.GARAGE) this.drawGarage();
+        else if (this.state === STATES.PLAYING) {
             this.drawGameObjects();
             this.drawHUD();
-            if (this.state === STATES.PAUSED) {
-                this.drawPause();
-            }
         } else if (this.state === STATES.GAMEOVER) {
             this.drawGameObjects();
             this.drawGameOver();
         }
-
-        // Draw particles
-        this.particles.forEach(p => {
-            this.ctx.globalAlpha = p.life / 60;
-            this.ctx.fillStyle = p.color;
-            this.ctx.beginPath();
-            this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.globalAlpha = 1;
-        });
     }
 
     drawRoad() {
-        // Road background
         this.ctx.fillStyle = COLORS.DARK_GRAY;
         this.ctx.fillRect(this.roadLeft, 0, this.roadWidth, this.canvas.height);
 
-        // Road edges (neon glow)
         this.ctx.strokeStyle = COLORS.NEON_PINK;
         this.ctx.lineWidth = 3;
-        this.ctx.shadowColor = COLORS.NEON_PINK;
-        this.ctx.shadowBlur = 10;
         this.ctx.beginPath();
         this.ctx.moveTo(this.roadLeft, 0);
         this.ctx.lineTo(this.roadLeft, this.canvas.height);
-        this.ctx.stroke();
-        this.ctx.beginPath();
         this.ctx.moveTo(this.roadLeft + this.roadWidth, 0);
         this.ctx.lineTo(this.roadLeft + this.roadWidth, this.canvas.height);
         this.ctx.stroke();
-        this.ctx.shadowBlur = 0;
 
-        // Lane dividers
-        this.ctx.setLineDash([30, 20]);
         this.ctx.strokeStyle = COLORS.NEON_CYAN;
-        this.ctx.lineWidth = 2;
-
-        for (let i = 1; i < GAME_CONFIG.LANE_COUNT; i++) {
-            const x = this.roadLeft + this.laneWidth * i;
+        this.ctx.setLineDash([30, 20]);
+        for (let i = 1; i < 3; i++) {
+            const x = this.getLaneX(i) - this.laneWidth / 2;
             this.ctx.beginPath();
             this.ctx.moveTo(x, -this.roadOffset);
             this.ctx.lineTo(x, this.canvas.height);
@@ -555,264 +526,227 @@ class NeonDrift {
         this.ctx.setLineDash([]);
     }
 
-    drawPlayer() {
-        const p = this.player;
-        const cx = p.x;
-        const cy = p.y;
+    drawPlayer(x, y, scale = 1) {
+        const colors = this.garage.getCurrentColors();
+        const type = this.garage.data.currentVehicle;
+        this.ctx.save();
+        this.ctx.translate(x, y);
+        this.ctx.scale(scale, scale);
 
         // Glow
-        this.ctx.shadowColor = p.color;
-        this.ctx.shadowBlur = 15;
+        this.ctx.shadowBlur = 20;
+        this.ctx.shadowColor = colors.primary;
 
-        // Car body
         this.ctx.fillStyle = COLORS.DARK_GRAY;
-        this.ctx.strokeStyle = p.color;
-        this.ctx.lineWidth = 2;
+        this.ctx.strokeStyle = colors.primary;
+        this.ctx.lineWidth = 3;
 
         this.ctx.beginPath();
-        this.ctx.moveTo(cx - 18, cy + 30);
-        this.ctx.lineTo(cx - 22, cy + 5);
-        this.ctx.lineTo(cx - 18, cy - 18);
-        this.ctx.lineTo(cx - 8, cy - 32);
-        this.ctx.lineTo(cx, cy - 36);
-        this.ctx.lineTo(cx + 8, cy - 32);
-        this.ctx.lineTo(cx + 18, cy - 18);
-        this.ctx.lineTo(cx + 22, cy + 5);
-        this.ctx.lineTo(cx + 18, cy + 30);
+        if (type === 'sport') {
+            this.ctx.moveTo(-18, 30); this.ctx.lineTo(-22, 0); this.ctx.lineTo(-15, -25);
+            this.ctx.lineTo(0, -35); this.ctx.lineTo(15, -25); this.ctx.lineTo(22, 0); this.ctx.lineTo(18, 30);
+        } else if (type === 'suv') {
+            this.ctx.rect(-20, -30, 40, 65);
+        } else if (type === 'moto') {
+            this.ctx.moveTo(-10, 30); this.ctx.lineTo(-10, -25); this.ctx.lineTo(0, -35);
+            this.ctx.lineTo(10, -25); this.ctx.lineTo(10, 30);
+        } else if (type === 'future') {
+            this.ctx.moveTo(-20, 30); this.ctx.lineTo(0, -40); this.ctx.lineTo(20, 30);
+        } else { // retro
+            this.ctx.roundRect(-20, -30, 40, 60, 5);
+        }
         this.ctx.closePath();
         this.ctx.fill();
         this.ctx.stroke();
 
-        // Windshield
-        this.ctx.fillStyle = '#323250';
+        // Accents
+        this.ctx.fillStyle = colors.secondary;
         this.ctx.beginPath();
-        this.ctx.moveTo(cx - 10, cy - 12);
-        this.ctx.lineTo(cx - 6, cy - 25);
-        this.ctx.lineTo(cx + 6, cy - 25);
-        this.ctx.lineTo(cx + 10, cy - 12);
-        this.ctx.closePath();
+        this.ctx.arc(0, 0, 5, 0, Math.PI * 2);
         this.ctx.fill();
-
-        // Headlights
-        this.ctx.fillStyle = p.color;
-        this.ctx.beginPath();
-        this.ctx.arc(cx - 7, cy - 28, 3, 0, Math.PI * 2);
-        this.ctx.arc(cx + 7, cy - 28, 3, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // Engine lights
-        this.ctx.fillStyle = COLORS.NEON_PINK;
-        this.ctx.fillRect(cx - 15, cy + 26, 7, 3);
-        this.ctx.fillRect(cx + 8, cy + 26, 7, 3);
-
-        this.ctx.shadowBlur = 0;
 
         // Shield
-        if (p.shieldActive) {
-            const pulse = Math.sin(this.animationFrame * 0.1) * 0.2 + 0.8;
-            this.ctx.globalAlpha = 0.3 * pulse;
+        if (this.player.shield > 0) {
             this.ctx.strokeStyle = COLORS.NEON_GREEN;
-            this.ctx.lineWidth = 3;
             this.ctx.beginPath();
-            this.ctx.arc(cx, cy, 45, 0, Math.PI * 2);
+            this.ctx.arc(0, 0, 45, 0, Math.PI * 2);
             this.ctx.stroke();
-            this.ctx.globalAlpha = 1;
         }
+
+        this.ctx.restore();
     }
 
     drawGameObjects() {
-        // Draw obstacles
-        this.obstacles.forEach(obs => {
-            this.ctx.shadowColor = obs.color;
-            this.ctx.shadowBlur = 10;
+        this.coins.forEach(c => {
+            this.ctx.fillStyle = COLORS.NEON_YELLOW;
+            this.ctx.beginPath(); this.ctx.arc(c.x, c.y, 10, 0, Math.PI * 2); this.ctx.fill();
+            this.ctx.fillStyle = COLORS.BLACK; this.ctx.fillText('$', c.x - 3, c.y + 4);
+        });
+
+        this.powerups.forEach(p => {
+            this.ctx.fillStyle = p.type === 'shield' ? COLORS.NEON_GREEN : COLORS.NEON_BLUE;
+            this.ctx.beginPath(); this.ctx.arc(p.x, p.y, 12, 0, Math.PI * 2); this.ctx.fill();
+            this.ctx.fillStyle = COLORS.BLACK; this.ctx.fillText(p.type === 'shield' ? 'S' : 'T', p.x - 4, p.y + 4);
+        });
+
+        this.obstacles.forEach(o => {
             this.ctx.fillStyle = COLORS.DARK_GRAY;
-            this.ctx.strokeStyle = obs.color;
+            this.ctx.strokeStyle = COLORS.NEON_RED;
             this.ctx.lineWidth = 2;
-
-            const x = obs.x - obs.width / 2;
-            const y = obs.y - obs.height / 2;
-            this.ctx.fillRect(x, y, obs.width, obs.height);
-            this.ctx.strokeRect(x, y, obs.width, obs.height);
-        });
-
-        // Draw coins
-        this.coins_list.forEach(coin => {
-            this.ctx.shadowColor = coin.color;
+            this.ctx.shadowColor = COLORS.NEON_RED;
             this.ctx.shadowBlur = 10;
-            this.ctx.fillStyle = coin.color;
-            this.ctx.beginPath();
-            this.ctx.arc(coin.x, coin.y, 10, 0, Math.PI * 2);
-            this.ctx.fill();
-
-            this.ctx.fillStyle = COLORS.WHITE;
-            this.ctx.font = 'bold 12px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText('$', coin.x, coin.y);
+            this.ctx.fillRect(o.x - 20, o.y - 15, 40, 30);
+            this.ctx.strokeRect(o.x - 20, o.y - 15, 40, 30);
+            this.ctx.shadowBlur = 0;
         });
 
-        // Draw powerups
-        this.powerups.forEach(pw => {
-            const pulse = Math.sin(pw.pulse) * 3;
-            this.ctx.shadowColor = pw.color;
-            this.ctx.shadowBlur = 15 + pulse * 2;
-            this.ctx.fillStyle = COLORS.DARK_GRAY;
-            this.ctx.strokeStyle = pw.color;
-            this.ctx.lineWidth = 2;
-
-            const size = pw.width / 2 + pulse;
-            this.ctx.beginPath();
-            this.ctx.arc(pw.x, pw.y, size, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.stroke();
-
-            // Icon
-            this.ctx.fillStyle = pw.color;
-            this.ctx.font = '16px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText(pw.type === 'shield' ? '🛡️' : '⏱️', pw.x, pw.y);
-        });
-
-        this.ctx.shadowBlur = 0;
-
-        // Draw player
-        this.drawPlayer();
+        this.drawPlayer(this.player.x, this.player.y);
     }
 
     drawHUD() {
-        // Score
-        this.ctx.fillStyle = COLORS.NEON_CYAN;
-        this.ctx.font = 'bold 24px Arial';
-        this.ctx.textAlign = 'left';
-        this.ctx.shadowColor = COLORS.NEON_CYAN;
-        this.ctx.shadowBlur = 10;
-        this.ctx.fillText(`${Math.floor(this.score)}`, 20, 40);
         this.ctx.shadowBlur = 0;
+        this.ctx.fillStyle = COLORS.NEON_CYAN;
+        this.ctx.font = "bold 24px Arial";
+        this.ctx.textAlign = "left";
+        this.ctx.fillText(`Skor: ${Math.floor(this.score)}`, 20, 40);
 
-        // Coins
+        this.ctx.textAlign = "right";
         this.ctx.fillStyle = COLORS.NEON_YELLOW;
-        this.ctx.font = '18px Arial';
-        this.ctx.textAlign = 'right';
-        this.ctx.fillText(`🪙 ${this.coins}`, this.canvas.width - 20, 40);
-
-        // Speed bar
-        const barWidth = 80;
-        const barHeight = 6;
-        const barX = 20;
-        const barY = 55;
-        const speedPercent = (this.gameSpeed - GAME_CONFIG.INITIAL_SPEED) / (GAME_CONFIG.MAX_SPEED - GAME_CONFIG.INITIAL_SPEED);
-
-        this.ctx.fillStyle = COLORS.DARK_GRAY;
-        this.ctx.fillRect(barX, barY, barWidth, barHeight);
-        this.ctx.fillStyle = COLORS.NEON_PINK;
-        this.ctx.fillRect(barX, barY, barWidth * speedPercent, barHeight);
+        this.ctx.fillText(`🪙 ${this.garage.data.coins}`, this.canvas.width - 20, 40);
     }
 
     drawMenu() {
-        // Title
-        this.ctx.textAlign = 'center';
+        const cx = this.canvas.width / 2;
+        const cy = this.canvas.height / 2;
 
-        // NEON
+        this.ctx.textAlign = "center";
+        this.ctx.font = "bold 40px Arial";
         this.ctx.fillStyle = COLORS.NEON_PINK;
-        this.ctx.font = 'bold 48px Arial';
-        this.ctx.shadowColor = COLORS.NEON_PINK;
-        this.ctx.shadowBlur = 20;
-        this.ctx.fillText('NEON', this.canvas.width / 2 - 70, 150);
-
-        // DRIFT
+        this.ctx.fillText("NEON", cx, cy - 60);
         this.ctx.fillStyle = COLORS.NEON_CYAN;
-        this.ctx.shadowColor = COLORS.NEON_CYAN;
-        this.ctx.fillText('DRIFT', this.canvas.width / 2 + 70, 150);
-        this.ctx.shadowBlur = 0;
+        this.ctx.fillText("DRIFT", cx, cy - 20);
 
-        // High score
-        this.ctx.fillStyle = COLORS.NEON_YELLOW;
-        this.ctx.font = '18px Arial';
-        this.ctx.fillText(`En Yüksek: ${this.highScore}`, this.canvas.width / 2, 220);
-
-        // Coins
-        this.ctx.fillStyle = COLORS.NEON_YELLOW;
-        this.ctx.fillText(`🪙 ${this.coins}`, this.canvas.width / 2, 250);
-
-        // Start prompt
-        const pulse = Math.sin(this.animationFrame * 0.05) * 0.3 + 0.7;
-        this.ctx.globalAlpha = pulse;
+        this.ctx.font = "20px Arial";
         this.ctx.fillStyle = COLORS.WHITE;
-        this.ctx.font = '20px Arial';
-        this.ctx.fillText('DOKUNARAK BAŞLA', this.canvas.width / 2, this.canvas.height - 150);
-        this.ctx.globalAlpha = 1;
+        this.ctx.fillText("Başlamak İçin Dokun", cx, cy + 50);
 
-        // Controls hint
-        this.ctx.fillStyle = '#666';
-        this.ctx.font = '14px Arial';
-        this.ctx.fillText('Sol/Sağ dokunarak yön değiştir', this.canvas.width / 2, this.canvas.height - 100);
+        // Garage Button
+        this.ctx.font = "30px Arial";
+        this.ctx.fillText("🚗", this.canvas.width - 40, 50);
+        this.ctx.font = "12px Arial";
+        this.ctx.fillText("Garaj", this.canvas.width - 40, 70);
     }
 
-    drawPause() {
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    drawGarage() {
+        const cx = this.canvas.width / 2;
+
+        // Header
+        this.ctx.fillStyle = COLORS.BLACK;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        this.ctx.fillStyle = COLORS.NEON_CYAN;
-        this.ctx.font = 'bold 36px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.shadowColor = COLORS.NEON_CYAN;
-        this.ctx.shadowBlur = 15;
-        this.ctx.fillText('DURAKLADI', this.canvas.width / 2, this.canvas.height / 2 - 20);
-        this.ctx.shadowBlur = 0;
+        this.ctx.textAlign = "center";
+        this.ctx.font = "bold 30px Arial";
+        this.ctx.fillStyle = COLORS.NEON_YELLOW;
+        this.ctx.fillText("GARAJ", cx, 50);
 
+        this.ctx.font = "20px Arial";
+        this.ctx.fillText(`🪙 ${this.garage.data.coins}`, cx, 80);
+
+        // Tabs
+        this.ctx.fillStyle = this.garageTab === 0 ? COLORS.NEON_CYAN : COLORS.DARK_GRAY;
+        this.ctx.fillText("ARAÇLAR", cx - 80, 120);
+        this.ctx.fillStyle = this.garageTab === 1 ? COLORS.NEON_CYAN : COLORS.DARK_GRAY;
+        this.ctx.fillText("RENKLER", cx + 80, 120);
+
+        // Item Display
+        const list = this.garageTab === 0 ? Object.keys(VEHICLES) : Object.keys(THEMES);
+        const id = list[this.garageIndex];
+        const item = this.garageTab === 0 ? VEHICLES[id] : THEMES[id];
+
+        this.ctx.font = "bold 24px Arial";
         this.ctx.fillStyle = COLORS.WHITE;
-        this.ctx.font = '16px Arial';
-        this.ctx.fillText('Devam etmek için dokun', this.canvas.width / 2, this.canvas.height / 2 + 30);
+        this.ctx.fillText(item.name.toUpperCase(), cx, 180);
+
+        // Preview
+        const previewY = 260;
+        if (this.garageTab === 0) {
+            // Temp swap current vehicle for preview
+            const old = this.garage.data.currentVehicle;
+            this.garage.data.currentVehicle = id;
+            this.drawPlayer(cx, previewY, 1.5);
+            this.garage.data.currentVehicle = old;
+        } else {
+            // Color preview circle
+            this.ctx.fillStyle = item.primary || `hsl(${(Date.now() / 20) % 360},100%,50%)`;
+            this.ctx.beginPath(); this.ctx.arc(cx, previewY, 40, 0, Math.PI * 2); this.ctx.fill();
+        }
+
+        // Info
+        this.ctx.font = "16px Arial";
+        this.ctx.fillStyle = COLORS.NEON_CYAN;
+        if (item.desc) this.ctx.fillText(item.desc, cx, 350);
+
+        // Buy/Select Button
+        const isOwned = this.garageTab === 0
+            ? this.garage.data.ownedVehicles.includes(id)
+            : this.garage.data.ownedColors.includes(id);
+
+        const isSelected = this.garageTab === 0
+            ? this.garage.data.currentVehicle === id
+            : this.garage.data.currentColor === id;
+
+        let btnText = `SATIN AL (${item.price})`;
+        let btnColor = COLORS.NEON_RED;
+
+        if (isOwned) {
+            btnText = isSelected ? "SEÇİLİ" : "SEÇ";
+            btnColor = isSelected ? COLORS.NEON_GREEN : COLORS.NEON_BLUE;
+        } else if (this.garage.data.coins >= item.price) {
+            btnColor = COLORS.NEON_YELLOW;
+        }
+
+        // Button Box
+        this.ctx.fillStyle = btnColor;
+        this.ctx.fillRect(cx - 100, this.canvas.height - 150, 200, 50);
+        this.ctx.fillStyle = COLORS.BLACK;
+        this.ctx.font = "bold 20px Arial";
+        this.ctx.fillText(btnText, cx, this.canvas.height - 118);
+
+        // Navigation Arrows
+        this.ctx.fillStyle = COLORS.WHITE;
+        this.ctx.font = "40px Arial";
+        this.ctx.fillText("←", 40, this.canvas.height / 2 + 50);
+        this.ctx.fillText("→", this.canvas.width - 40, this.canvas.height / 2 + 50);
+
+        // Back Button
+        this.ctx.font = "30px Arial";
+        this.ctx.fillText("🔙", 30, 40);
     }
 
     drawGameOver() {
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        this.ctx.fillStyle = "rgba(0,0,0,0.8)";
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        this.ctx.textAlign = 'center';
+        const cx = this.canvas.width / 2;
+        const cy = this.canvas.height / 2;
 
-        // Game Over text
+        this.ctx.textAlign = "center";
+        this.ctx.font = "bold 40px Arial";
         this.ctx.fillStyle = COLORS.NEON_RED;
-        this.ctx.font = 'bold 36px Arial';
-        this.ctx.shadowColor = COLORS.NEON_RED;
-        this.ctx.shadowBlur = 15;
-        this.ctx.fillText('OYUN BİTTİ', this.canvas.width / 2, this.canvas.height / 2 - 60);
-        this.ctx.shadowBlur = 0;
+        this.ctx.fillText("OYUN BİTTİ", cx, cy - 50);
 
-        // Score
+        this.ctx.font = "24px Arial";
         this.ctx.fillStyle = COLORS.NEON_CYAN;
-        this.ctx.font = '24px Arial';
-        this.ctx.fillText(`Skor: ${Math.floor(this.score)}`, this.canvas.width / 2, this.canvas.height / 2);
+        this.ctx.fillText(`Skor: ${Math.floor(this.score)}`, cx, cy);
 
-        // High score
-        if (this.score >= this.highScore) {
-            this.ctx.fillStyle = COLORS.NEON_YELLOW;
-            this.ctx.fillText('🏆 YENİ REKOR!', this.canvas.width / 2, this.canvas.height / 2 + 40);
-        }
+        this.ctx.fillStyle = COLORS.NEON_YELLOW;
+        this.ctx.fillText(`Toplam Altın: ${this.garage.data.coins}`, cx, cy + 40);
 
-        // Restart
-        const pulse = Math.sin(this.animationFrame * 0.05) * 0.3 + 0.7;
-        this.ctx.globalAlpha = pulse;
+        this.ctx.font = "18px Arial";
         this.ctx.fillStyle = COLORS.WHITE;
-        this.ctx.font = '18px Arial';
-        this.ctx.fillText('Tekrar oynamak için dokun', this.canvas.width / 2, this.canvas.height / 2 + 100);
-        this.ctx.globalAlpha = 1;
-    }
-
-    // ============ GAME LOOP ============
-    gameLoop(timestamp) {
-        const deltaTime = timestamp - this.lastTime;
-        this.lastTime = timestamp;
-
-        this.update(deltaTime);
-        this.draw();
-
-        requestAnimationFrame((t) => this.gameLoop(t));
+        this.ctx.fillText("Tekrar Oyna", cx, cy + 100);
     }
 }
 
-// ============ INITIALIZE ============
-window.addEventListener('load', () => {
-    new NeonDrift();
-});
+// Start
+window.onload = () => new NeonDrift();
