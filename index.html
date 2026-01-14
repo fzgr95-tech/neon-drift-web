@@ -1,26 +1,442 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 
 <head>
-    <meta charset="utf-8">
-    <title>TEST SAYFASI</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>NEON DRIFT ULTRA</title>
     <style>
         body {
-            background-color: white;
-            color: black;
-            font-size: 50px;
-            text-align: center;
-            padding-top: 100px;
+            background-color: #050510;
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+            background: linear-gradient(180deg, #050510 0%, #1a0b2e 100%);
+        }
+
+        #loader {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ffff;
+            font-family: monospace;
+            font-size: 20px;
+            pointer-events: none;
+            transition: opacity 0.5s;
         }
     </style>
 </head>
 
 <body>
-    TEST V4.0
-    <br>
-    Eğer bunu görüyorsan internet çalışıyor.
-    <br>
-    <small>Lütfen gördüğünü söyle.</small>
+
+    <div id="loader">SİSTEM BAŞLATILIYOR...</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // === GÖRSEL GELİŞTİRME GÜNCELLEMESİ v5.0 ===
+
+        // Hata Yakalama
+        window.onerror = function (msg, url, line) {
+            alert("Hata: " + msg + "\nSatır: " + line);
+            return false;
+        };
+
+        // Güvenli Storage
+        var storage = {
+            get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+            set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
+        };
+
+        // RENKLER (Neon Palet)
+        var C = {
+            CYAN: '#00ffff', PINK: '#ff00ff', YELLOW: '#ffff00',
+            RED: '#ff3366', GREEN: '#00ff64', BLUE: '#0096ff',
+            PURPLE: '#b400ff', WHITE: '#ffffff', DARK: '#1e1e28'
+        };
+
+        var VEHICLES = {
+            sport: { price: 0, name: "Neon Spor", type: "sport" },
+            suv: { price: 300, name: "Cyber Truck", type: "suv" },
+            moto: { price: 400, name: "Light Cycle", type: "moto" },
+            future: { price: 600, name: "X-Racer", type: "future" },
+            retro: { price: 500, name: "Vaporwave", type: "retro" }
+        };
+
+        // DEĞİŞKENLER
+        var cvs, ctx, w, h;
+        var state = 'menu';
+        var score = 0, coins = 0;
+        var saved = { coins: 0, cars: ['sport'], cur: 'sport', high: 0 };
+        var speed = 0;
+        var roadOffset = 0;
+        var starField = [];
+
+        // YÜKLEME
+        try {
+            var raw = storage.get('neonDataV5');
+            if (raw) saved = JSON.parse(raw);
+        } catch (e) { }
+
+        // BAŞLATMA
+        window.onload = function () {
+            cvs = document.getElementById('gameCanvas');
+            ctx = cvs.getContext('2d');
+
+            // Yıldızlar
+            for (var i = 0; i < 50; i++) starField.push({ x: Math.random(), y: Math.random(), s: Math.random() * 2 });
+
+            window.addEventListener('resize', resize);
+            resize();
+            initInputs();
+
+            document.getElementById('loader').style.opacity = 0;
+            loop();
+        };
+
+        function resize() {
+            w = window.innerWidth;
+            h = window.innerHeight;
+            cvs.width = w;
+            cvs.height = h;
+        }
+
+        // OYUN NESNELERİ
+        var player = { lane: 1, x: 0, y: 0, tLane: 1, m: false, p: 0, shield: 0 };
+        var obs = [], gold = [], pow = [];
+        var timers = { o: 0, g: 0, p: 0 };
+
+        function getX(lane) {
+            var roadW = Math.min(w, 500) * 0.9;
+            var left = (w - roadW) / 2;
+            var laneW = roadW / 3;
+            return left + laneW * lane + laneW / 2;
+        }
+
+        // GİRDİ
+        function initInputs() {
+            var ts = 0;
+            cvs.addEventListener('touchstart', function (e) { e.preventDefault(); ts = e.touches[0].clientX; handleTap(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+            cvs.addEventListener('touchend', function (e) { e.preventDefault(); var d = e.changedTouches[0].clientX - ts; if (Math.abs(d) > 30 && state === 'playing') move(d > 0 ? 1 : -1); }, { passive: false });
+            cvs.addEventListener('mousedown', function (e) { handleTap(e.clientX, e.clientY); });
+            document.addEventListener('keydown', function (e) {
+                if (state === 'playing') { if (e.key === 'ArrowLeft') move(-1); if (e.key === 'ArrowRight') move(1); }
+                if ((state === 'menu' || state === 'gameover') && e.key === 'Enter') start();
+            });
+        }
+
+        function handleTap(x, y) {
+            if (state === 'menu') {
+                if (y < 100 && x > w - 100) state = 'garage'; else start();
+            } else if (state === 'garage') {
+                if (y < 80) state = 'menu';
+                else if (y > h - 100) buy();
+                else if (x < 100) garageNav(-1);
+                else if (x > w - 100) garageNav(1);
+            } else if (state === 'gameover') {
+                state = 'menu';
+            }
+        }
+
+        function move(d) {
+            var n = player.lane + d;
+            if (n >= 0 && n <= 2 && !player.m) { player.tLane = n; player.m = true; player.p = 0; }
+        }
+
+        function start() {
+            state = 'playing'; score = 0; speed = 6; obs = []; gold = []; pow = [];
+            player.lane = 1; player.tLane = 1; player.x = getX(1); player.m = false; player.shield = 0;
+            player.y = h - 150;
+        }
+
+        // DÖNGÜ
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function update() {
+            // Yıldızlar
+            starField.forEach(function (s) { s.y += (speed / 20 + 0.05); if (s.y > 1) { s.y = 0; s.x = Math.random(); } });
+
+            if (state !== 'playing') return;
+
+            speed = Math.min(25, speed + 0.003);
+            score += speed / 10;
+            roadOffset = (roadOffset + speed) % 50;
+
+            // Player
+            if (player.m) {
+                player.p += 15;
+                var s = getX(player.lane), e = getX(player.tLane);
+                player.x = s + (e - s) * Math.min(player.p / 100, 1);
+                if (player.p >= 100) { player.lane = player.tLane; player.m = false; }
+            }
+            if (player.shield > 0) player.shield--;
+
+            // Spawn
+            timers.o++; if (timers.o > 100 - speed * 2) { timers.o = 0; obs.push({ x: getX(Math.floor(Math.random() * 3)), y: -50 }); }
+            timers.g++; if (timers.g > 60) { timers.g = 0; if (Math.random() < 0.4) gold.push({ x: getX(Math.floor(Math.random() * 3)), y: -40 }); }
+            timers.p++; if (timers.p > 600) { timers.p = 0; pow.push({ x: getX(Math.floor(Math.random() * 3)), y: -40, t: Math.random() < 0.5 }); }
+
+            // Update Items
+            check(obs, 40, function (o, i) {
+                if (player.shield > 0) { player.shield = 0; return true; }
+                state = 'gameover'; if (score > saved.high) saved.high = Math.floor(score); saved.coins += Math.floor(score / 10); save();
+            });
+            check(gold, 50, function (g, i) { saved.coins++; score += 50; return true; });
+            check(pow, 50, function (p, i) { if (p.t) player.shield = 400; else speed = 6; return true; });
+        }
+
+        function check(arr, dist, cb) {
+            for (var i = arr.length - 1; i >= 0; i--) {
+                arr[i].y += speed;
+                if (Math.abs(arr[i].x - player.x) < dist && Math.abs(arr[i].y - player.y) < dist) { if (cb(arr[i], i)) arr.splice(i, 1); }
+                else if (arr[i].y > h + 50) arr.splice(i, 1);
+            }
+        }
+
+        // ÇİZİM - GÖRSEL ŞÖLEN
+        function draw() {
+            // 1. Arka Plan & Yıldızlar
+            ctx.fillStyle = C.DARK;
+            ctx.fillRect(0, 0, w, h);
+
+            ctx.fillStyle = C.WHITE;
+            starField.forEach(function (s) {
+                ctx.globalAlpha = Math.random() * 0.5 + 0.3;
+                ctx.beginPath(); ctx.arc(s.x * w, s.y * h, s.s, 0, 7); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+
+            // 2. Yol (Perspektif Hissi için Gradient)
+            var rw = Math.min(w, 500) * 0.9;
+            var rl = (w - rw) / 2;
+            var grad = ctx.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, '#000');
+            grad.addColorStop(1, '#2a2a40');
+
+            ctx.fillStyle = grad;
+            ctx.fillRect(rl, 0, rw, h);
+
+            // Yol Kenarları (Neon Glow)
+            glow(20, C.PINK);
+            ctx.strokeStyle = C.PINK;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(rl, 0); ctx.lineTo(rl, h);
+            ctx.moveTo(rl + rw, 0); ctx.lineTo(rl + rw, h);
+            ctx.stroke();
+            glow(0);
+
+            // Grid Çizgileri
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.2)';
+            ctx.lineWidth = 1;
+            // Yatay (Hareketli)
+            var gridY = (Date.now() / 5) % 40;
+            for (var i = 0; i < h; i += 40) {
+                var y = i + gridY;
+                if (y > h) y -= h;
+                ctx.beginPath(); ctx.moveTo(rl, y); ctx.lineTo(rl + rw, y); ctx.stroke();
+            }
+            // Dikey
+            var lw = rw / 3;
+            ctx.strokeStyle = C.CYAN;
+            ctx.lineWidth = 2;
+            glow(10, C.CYAN);
+            for (var i = 1; i < 3; i++) {
+                var lx = rl + lw * i;
+                ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, h); ctx.stroke();
+            }
+            glow(0);
+
+            if (state === 'menu') drawMenu();
+            else if (state === 'garage') drawGarage();
+            else if (state === 'playing') drawGame();
+            else if (state === 'gameover') drawGameOver();
+        }
+
+        function glow(b, c) {
+            ctx.shadowBlur = b;
+            ctx.shadowColor = c || C.CYAN;
+        }
+
+        function drawPlayer(x, y, type, scale) {
+            if (!scale) scale = 1;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(scale, scale);
+
+            // Gölge
+            glow(25, C.CYAN);
+
+            // Araç Çizimi (Detaylı)
+            if (type === 'sport' || !type) {
+                ctx.fillStyle = '#0a0a0f';
+                ctx.strokeStyle = C.CYAN;
+                ctx.lineWidth = 2;
+                // Gövde
+                ctx.beginPath();
+                ctx.moveTo(-18, 30); ctx.lineTo(-22, 5); ctx.lineTo(-15, -20);
+                ctx.lineTo(0, -35); ctx.lineTo(15, -20); ctx.lineTo(22, 5); ctx.lineTo(18, 30);
+                ctx.closePath();
+                ctx.fill(); ctx.stroke();
+                // Cam
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+                ctx.beginPath(); ctx.moveTo(-12, -10); ctx.lineTo(0, -25); ctx.lineTo(12, -10); ctx.fill();
+                // Işıklar
+                ctx.fillStyle = C.CYAN;
+                ctx.beginPath(); ctx.arc(-10, -32, 2, 0, 7); ctx.arc(10, -32, 2, 0, 7); ctx.fill();
+            } else if (type === 'suv') {
+                ctx.fillStyle = '#111'; ctx.strokeStyle = C.GREEN; ctx.lineWidth = 3;
+                ctx.strokeRect(-22, -35, 44, 70); ctx.fillRect(-22, -35, 44, 70);
+                ctx.fillStyle = 'rgba(0,255,100,0.3)'; ctx.fillRect(-18, -25, 36, 15); // Cam
+                glow(0);
+                ctx.fillStyle = C.GREEN; ctx.fillRect(-24, 25, 6, 10); ctx.fillRect(18, 25, 6, 10); // Tekerler
+            } else if (type === 'moto') {
+                ctx.strokeStyle = C.YELLOW; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(0, 30); ctx.lineTo(0, -30); ctx.stroke();
+                ctx.fillStyle = C.YELLOW; ctx.beginPath(); ctx.arc(0, -10, 8, 0, 7); ctx.fill();
+            } else if (type === 'future') {
+                ctx.fillStyle = '#000'; ctx.strokeStyle = C.PURPLE;
+                ctx.beginPath(); ctx.moveTo(0, -40); ctx.lineTo(25, 30); ctx.lineTo(0, 20); ctx.lineTo(-25, 30); ctx.closePath();
+                ctx.fill(); ctx.stroke();
+                ctx.fillStyle = C.PURPLE; ctx.beginPath(); ctx.arc(0, 0, 5, 0, 7); ctx.fill();
+            } else { // Retro
+                ctx.fillStyle = '#220022'; ctx.strokeStyle = C.RED;
+                ctx.fillRect(-20, -30, 40, 60); ctx.strokeRect(-20, -30, 40, 60);
+                ctx.fillStyle = 'rgba(255, 50, 100, 0.5)';
+                for (var i = 0; i < 3; i++) ctx.fillRect(-18, -28 + i * 10, 36, 5);
+            }
+
+            // Kalkan
+            if (player.shield > 0) {
+                glow(15 + Math.random() * 10, C.GREEN);
+                ctx.strokeStyle = C.GREEN;
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(0, 0, 45, 0, 7); ctx.stroke();
+            }
+
+            ctx.restore();
+            glow(0);
+        }
+
+        function drawGame() {
+            // Objeler
+            obs.forEach(function (o) {
+                glow(15, C.RED);
+                ctx.fillStyle = '#300'; ctx.strokeStyle = C.RED; ctx.lineWidth = 2;
+                ctx.fillRect(o.x - 20, o.y - 15, 40, 30); ctx.strokeRect(o.x - 20, o.y - 15, 40, 30);
+            });
+
+            gold.forEach(function (g) {
+                glow(15, C.YELLOW);
+                ctx.fillStyle = C.YELLOW;
+                ctx.beginPath(); ctx.arc(g.x, g.y, 10, 0, 7); ctx.fill();
+                ctx.fillStyle = '#000'; ctx.textAlign = "center"; ctx.font = "bold 12px Arial"; ctx.fillText("$", g.x, g.y + 4);
+            });
+
+            pow.forEach(function (p) {
+                var c = p.t ? C.GREEN : C.BLUE;
+                glow(20, c);
+                ctx.fillStyle = c;
+                ctx.beginPath(); ctx.moveTo(p.x, p.y - 15); ctx.lineTo(p.x + 15, p.y + 15); ctx.lineTo(p.x - 15, p.y + 15); ctx.fill();
+            });
+            glow(0);
+
+            // Player
+            drawPlayer(player.x, player.y, saved.cur);
+
+            // HUD
+            glow(5, C.PINK);
+            ctx.fillStyle = C.PINK; ctx.font = "bold 24px Arial"; ctx.textAlign = "left"; ctx.fillText(Math.floor(score), 20, 50);
+            ctx.fillStyle = C.YELLOW; ctx.textAlign = "right"; ctx.fillText("$ " + saved.coins, w - 20, 50);
+            glow(0);
+        }
+
+        function drawMenu() {
+            var cx = w / 2, cy = h / 2;
+            glow(20, C.PINK);
+            ctx.textAlign = "center";
+            ctx.fillStyle = C.PINK; ctx.font = "bold 60px Arial"; ctx.fillText("NEON", cx, cy - 50);
+            glow(20, C.CYAN);
+            ctx.fillStyle = C.CYAN; ctx.fillText("DRIFT", cx, cy + 20);
+            glow(0);
+
+            ctx.fillStyle = "#fff"; ctx.font = "20px Arial";
+
+            // Yanıp sönen yazı
+            if (parseInt(Date.now() / 500) % 2) ctx.fillText("BAŞLAMAK İÇİN DOKUN", cx, cy + 100);
+
+            // Garaj Btn
+            ctx.textAlign = "right";
+            ctx.fillText("GARAGE 🚗", w - 30, 60);
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = "rgba(0,0,0,0.85)"; ctx.fillRect(0, 0, w, h);
+            var cx = w / 2, cy = h / 2;
+            glow(30, C.RED);
+            ctx.textAlign = "center"; ctx.fillStyle = C.RED; ctx.font = "bold 50px Arial"; ctx.fillText("CRASHED", cx, cy - 40);
+            glow(0);
+            ctx.fillStyle = C.CYAN; ctx.font = "30px Arial"; ctx.fillText("Score: " + Math.floor(score), cx, cy + 20);
+            ctx.fillStyle = C.YELLOW; ctx.font = "20px Arial"; ctx.fillText("Total Gold: " + saved.coins, cx, cy + 60);
+            if (parseInt(Date.now() / 500) % 2) ctx.fillText("TAP TO RESTART", cx, cy + 150);
+        }
+
+        // GARAGE & UI
+        var gIdx = 0;
+        function garageNav(d) {
+            var k = Object.keys(VEHICLES);
+            gIdx += d; if (gIdx < 0) gIdx = k.length - 1; if (gIdx >= k.length) gIdx = 0;
+        }
+        function buy() {
+            var k = Object.keys(VEHICLES), id = k[gIdx];
+            if (saved.cars.includes(id)) { saved.cur = id; save(); }
+            else if (saved.coins >= VEHICLES[id].price) { saved.coins -= VEHICLES[id].price; saved.cars.push(id); saved.cur = id; save(); }
+        }
+        function save() { storage.set('neonDataV5', JSON.stringify(saved)); }
+
+        function drawGarage() {
+            ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h);
+            var cx = w / 2;
+            var k = Object.keys(VEHICLES), id = k[gIdx], v = VEHICLES[id];
+            var owned = saved.cars.includes(id), sel = saved.cur === id;
+
+            ctx.textAlign = "center";
+            ctx.fillStyle = C.YELLOW; ctx.font = "30px Arial"; ctx.fillText("GARAGE", cx, 60);
+            ctx.fillText("$ " + saved.coins, cx, 100);
+
+            // Preview
+            drawPlayer(cx, h / 2, id, 2);
+
+            glow(10, C.WHITE);
+            ctx.fillStyle = "#fff"; ctx.font = "30px Arial"; ctx.fillText(v.name, cx, h / 2 - 80);
+            glow(0);
+
+            // Nav
+            ctx.fillStyle = "#fff"; ctx.font = "40px Arial";
+            ctx.fillText("<", 40, h / 2); ctx.fillText(">", w - 40, h / 2);
+
+            // Buy Btn
+            var col = C.RED, txt = "BUY (" + v.price + ")";
+            if (owned) { col = sel ? C.GREEN : C.BLUE; txt = sel ? "EQUIPPED" : "EQUIP"; }
+            else if (saved.coins >= v.price) col = C.YELLOW;
+
+            glow(15, col);
+            ctx.fillStyle = col; ctx.fillRect(cx - 100, h - 120, 200, 60);
+            ctx.fillStyle = "#000"; ctx.font = "bold 24px Arial"; ctx.fillText(txt, cx, h - 82);
+            glow(0);
+
+            ctx.fillStyle = "#fff"; ctx.font = "20px Arial"; ctx.fillText("BACK", 40, 40);
+        }
+    </script>
 </body>
 
 </html>
