@@ -221,27 +221,22 @@
             if (!audioCtx) initAudio();
 
             if (state === 'menu') {
-                // Settings Button (Top Left)
-                if (y < 80 && x < 80) { playSound('select'); state = 'settings'; }
-                // Garage Button (Top Right)
-                else if (y < 80 && x > w - 80) { playSound('select'); state = 'garage'; }
-                else start();
+                // Settings - Geniş
+                if (y < 150 && x < 150) { playSound('select'); state = 'settings'; return; }
+                // Garage - Geniş
+                if (y < 150 && x > w - 150) { playSound('select'); state = 'garage'; return; }
+
+                // Start - Kısıtlı
+                if (y > h / 2) start();
             } else if (state === 'settings') {
-                // Back
-                if (y < 80 && x < 80) { playSound('select'); state = 'menu'; }
-                // Toggle Sound
-                else if (y > h / 2 - 60 && y < h / 2 - 10) {
-                    toggleSound(); playSound('select');
-                }
-                // Toggle Lang
-                else if (y > h / 2 + 20 && y < h / 2 + 70) {
-                    toggleLang(); playSound('select');
-                }
+                if (y < 150 && x < 150) { playSound('select'); state = 'menu'; return; }
+                if (y > h / 2 - 80 && y < h / 2 + 10) { toggleSound(); playSound('select'); }
+                else if (y > h / 2 + 20 && y < h / 2 + 100) { toggleLang(); playSound('select'); }
             } else if (state === 'garage') {
-                if (y < 80) { playSound('select'); state = 'menu'; }
-                else if (y > h - 100) buy();
-                else if (x < 100) { playSound('select'); garageNav(-1); }
-                else if (x > w - 100) { playSound('select'); garageNav(1); }
+                if (y < 150 && x < 150) { playSound('select'); state = 'menu'; return; }
+                else if (y > h - 120) buy();
+                else if (x < 150 && y > h / 2 - 100 && y < h / 2 + 100) { playSound('select'); garageNav(-1); }
+                else if (x > w - 150 && y > h / 2 - 100 && y < h / 2 + 100) { playSound('select'); garageNav(1); }
             } else if (state === 'gameover') {
                 state = 'menu';
             }
