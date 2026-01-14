@@ -99,16 +99,6 @@ class NeonDrift {
         // Animation
         this.animationFrame = 0;
 
-        // Hide loading screen immediately
-        try {
-            const loadingScreen = document.getElementById('loading-screen');
-            if (loadingScreen) {
-                loadingScreen.style.display = 'none';
-            }
-        } catch (e) {
-            console.log('Loading screen error:', e);
-        }
-
         // Start game loop
         this.lastTime = 0;
         requestAnimationFrame((t) => this.gameLoop(t));
