@@ -477,7 +477,7 @@
         function draw() {
             // Basic Draw
             ctx.fillStyle = "#050510"; ctx.fillRect(0, 0, w, h);
-            if (!saved.lowQ) { buildings.forEach(function (b) { ctx.fillStyle = `rgba(20, 20, 40, 0.8)`; ctx.fillRect(b.x, b.y, b.w, b.h); b.wins.forEach(function (win) { if (win.on) { var wc = ['#ff00ff', '#00ffff', '#ffff00'][Math.floor(b.x) % 3]; ctx.fillStyle = wc; ctx.globalAlpha = 0.5; ctx.fillRect(b.x + win.x, b.y + win.y, 10, 15); ctx.globalAlpha = 1; } }); }); }
+            if (!saved.lowQ) { buildings.forEach(function (b) { ctx.fillStyle = `rgba(20, 20, 40, 0.8)`; ctx.fillRect(b.x, b.y, b.w, b.h); b.wins.forEach(function (win) { if (win.on) { var wc = ['#ff00ff', '#00ffff', '#ffff00'][Math.floor(b.x) % 3]; ctx.fillStyle = wc; ctx.globalAlpha = 0.2; ctx.fillRect(b.x + win.x, b.y + win.y, 10, 15); ctx.globalAlpha = 1; } }); }); }
 
             var rw = Math.min(w, 600) * 0.8, rl = (w - rw) / 2;
             glow(15, C.PINK); ctx.strokeStyle = C.PINK; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(rl, 0); ctx.lineTo(rl, h); ctx.stroke(); ctx.beginPath(); ctx.moveTo(rl + rw, 0); ctx.lineTo(rl + rw, h); ctx.stroke();
