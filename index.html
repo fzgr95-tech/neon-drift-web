@@ -512,12 +512,32 @@
             ctx.textAlign = "right"; glow(20, C.YELLOW); ctx.fillStyle = C.YELLOW; ctx.font = "bold 30px Verdana"; ctx.fillText(T.coin + ": " + saved.coins, w - 20, 80);
             ctx.fillStyle = C.RED; ctx.font = "24px Verdana"; ctx.fillText(T.ammo + ": " + ammo, w - 20, h - 40);
 
-            // Powerups
-            ctx.textAlign = "left"; var py = 150;
-            if (activePowerups.shield > 0) { ctx.fillStyle = C.BLUE; ctx.fillText("🛡️ SHIELD", 20, py); py += 40; }
-            if (activePowerups.x2 > 0) { ctx.fillStyle = C.YELLOW; ctx.fillText("2X SCORE", 20, py); py += 40; }
-            if (activePowerups.slow > 0) { ctx.fillStyle = C.GREEN; ctx.fillText("⏱️ SLOW", 20, py); py += 40; }
-            if (activePowerups.mag > 0) { ctx.fillStyle = C.PURPLE; ctx.fillText("🧲 MAGNET", 20, py); py += 40; }
+            // Powerups with Duration Bars
+            ctx.textAlign = "left"; ctx.font = "18px Verdana"; var py = 150; var maxW = 100;
+            if (activePowerups.shield > 0) {
+                ctx.fillStyle = C.BLUE; ctx.fillText("🛡️", 20, py);
+                ctx.fillStyle = "#333"; ctx.fillRect(50, py - 12, maxW, 10);
+                ctx.fillStyle = C.BLUE; ctx.fillRect(50, py - 12, maxW * (activePowerups.shield / 400), 10);
+                py += 30;
+            }
+            if (activePowerups.x2 > 0) {
+                ctx.fillStyle = C.YELLOW; ctx.fillText("2X", 20, py);
+                ctx.fillStyle = "#333"; ctx.fillRect(50, py - 12, maxW, 10);
+                ctx.fillStyle = C.YELLOW; ctx.fillRect(50, py - 12, maxW * (activePowerups.x2 / 300), 10);
+                py += 30;
+            }
+            if (activePowerups.slow > 0) {
+                ctx.fillStyle = C.GREEN; ctx.fillText("⏱️", 20, py);
+                ctx.fillStyle = "#333"; ctx.fillRect(50, py - 12, maxW, 10);
+                ctx.fillStyle = C.GREEN; ctx.fillRect(50, py - 12, maxW * (activePowerups.slow / 300), 10);
+                py += 30;
+            }
+            if (activePowerups.mag > 0) {
+                ctx.fillStyle = C.PURPLE; ctx.fillText("🧲", 20, py);
+                ctx.fillStyle = "#333"; ctx.fillRect(50, py - 12, maxW, 10);
+                ctx.fillStyle = C.PURPLE; ctx.fillRect(50, py - 12, maxW * (activePowerups.mag / 500), 10);
+                py += 30;
+            }
 
             // PAUSED OVERLAY
             if (state === 'paused') {
