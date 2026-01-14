@@ -659,7 +659,7 @@
 
         function drawGarage() {
             ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h); var cx = w / 2, k = Object.keys(VEHICLES), id = k[gIdx], v = VEHICLES[id], own = saved.cars.includes(id), sel = saved.cur === id;
-            ctx.textAlign = "center"; ctx.fillStyle = C.YELLOW; ctx.font = "40px Verdana"; ctx.fillText(T.garage, cx, 60); ctx.fillText("💰 " + saved.coins, cx, 100);
+            ctx.textAlign = "center"; ctx.fillStyle = C.YELLOW; ctx.font = "40px Verdana"; ctx.fillText(T.garage, cx, 60); ctx.fillText(T.coin + ": " + saved.coins, cx, 100);
             drawPlayer(cx, h / 2 - 60, id, 2.5);
             glow(10, C.WHITE); ctx.fillStyle = "#fff"; ctx.font = "40px Verdana"; ctx.fillText(v.name, cx, h / 2 - 160); glow(0);
             ctx.fillStyle = C.CYAN; ctx.font = "20px Verdana"; ctx.fillText(T.speed + ": " + (v.speed * 10) + "/15", cx, h / 2 + 40);
