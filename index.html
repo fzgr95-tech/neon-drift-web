@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="icon-192.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Neon Blitz">
+    <meta name="apple-mobile-web-app-title" content="neon-blitz-v25.0">
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
     <!-- PeerJS for Multiplayer -->
@@ -156,12 +156,7 @@
         };
 
         var cvs, ctx, w, h;
-        var state = 'menu';
-        var saved = {
-            coins: 0, cars: ['sport'], cur: 'sport', high: 0, lang: 'TR', vol: 5, diff: 1, kSpeed: 5, lowQ: false,
-            ownColors: { 'sport': ['CYAN'], 'suv': ['GREEN'], 'moto': ['YELLOW'], 'future': ['PURPLE'], 'retro': ['RED'] },
-            selColor: { 'sport': 'CYAN', 'suv': 'GREEN', 'moto': 'YELLOW', 'future': 'PURPLE', 'retro': 'RED' }
-        };
+        var saved = JSON.parse(storage.get('neon-drift-save')) || { high: 0, coins: 0, cars: ['sport'], cur: 'sport', settings: {}, vol: 5, diff: 1, lang: 'TR', kSpeed: 5, lowQ: false, ownColors: { sport: ['C1'] }, selColor: { sport: 'C1' }, mpName: null };
         var score = 0, baseSpeed = 0, speed = 0, roadOffset = 0, particles = [], bullets = [];
         var buildings = [];
         var reviveUsed = false;
@@ -338,6 +333,7 @@
             if (mpState === 'menu') {
                 // CREATE ROOM
                 if (y > cy - 60 && y < cy && x > cx - 100 && x < cx + 100) {
+                    if (!saved.mpName) { saved.mpName = prompt("İsminiz / Name:", "Player") || "Player"; save(); }
                     mpState = 'host'; initHost(); playSound('select');
                 }
                 // JOIN ROOM
@@ -353,7 +349,12 @@
                     if (x > kx && x < kx + 50 && y > ky && y < ky + 50) {
                         var k = keys[i];
                         if (k === 'C') enteredCode = "";
-                        else if (k === 'OK') { if (enteredCode.length === 4) joinRoom(enteredCode); }
+                        else if (k === 'OK') {
+                            if (enteredCode.length === 4) {
+                                if (!saved.mpName) { saved.mpName = prompt("İsminiz / Name:", "Player") || "Player"; save(); }
+                                joinRoom(enteredCode);
+                            }
+                        }
                         else if (enteredCode.length < 4) enteredCode += k;
                         playSound('select');
                     }
@@ -363,8 +364,9 @@
                 if (mpState === 'host' && y > cy && y < cy + 50) {
                     navigator.clipboard.writeText(myId); playSound('coin');
                 }
-                // START GAME
-                if (mpPlayers.length > 0 && y > h - 150) {
+                // START GAME (Host Only)
+                if (isHost && mpPlayers.length > 0 && y > h - 150) {
+                    broadcast({ type: 'start' });
                     start(); playSound('select');
                 }
             }
@@ -398,9 +400,13 @@
                     for (var i = 0; i < mpPlayers.length; i++) {
                         ctx.fillStyle = "#fff"; ctx.fillText(mpPlayers[i].name + ": " + mpPlayers[i].score, cx, cy + 100 + i * 30);
                     }
-                    // START BUTTON
-                    ctx.fillStyle = C.GREEN; ctx.fillRect(cx - 100, h - 150, 200, 60);
-                    ctx.fillStyle = "#fff"; ctx.font = "bold 24px Verdana"; ctx.fillText(T.mp_start, cx, h - 110);
+                    // START BUTTON (Host Only)
+                    if (isHost) {
+                        ctx.fillStyle = C.GREEN; ctx.fillRect(cx - 100, h - 150, 200, 60);
+                        ctx.fillStyle = "#fff"; ctx.font = "bold 24px Verdana"; ctx.fillText(T.mp_start, cx, h - 110);
+                    } else {
+                        ctx.fillStyle = "#aaa"; ctx.font = "16px Verdana"; ctx.fillText("Waiting for Host to start...", cx, h - 120);
+                    }
                 } else if (myId) {
                     ctx.fillStyle = "#aaa"; ctx.font = "16px Verdana"; ctx.fillText(T.mp_wait, cx, cy + 60);
                     ctx.fillStyle = C.CYAN; ctx.font = "14px Verdana"; ctx.fillText("(Click code to copy)", cx, cy + 20);
@@ -434,7 +440,7 @@
             myId = Math.floor(1000 + Math.random() * 9000).toString();
             peer = new Peer('nb-' + myId);
             isHost = true;
-            mpPlayers = [{ name: 'HOST', score: 0 }];
+            mpPlayers = [{ name: saved.mpName || 'HOST', score: 0 }];
 
             peer.on('open', function (id) { console.log('My peer ID is: ' + id); });
             peer.on('connection', function (c) {
@@ -458,10 +464,13 @@
         function setupConnection() {
             conn.on('open', function () {
                 mpState = 'lobby';
-                conn.send({ type: 'join', name: 'GUEST' });
+                conn.send({ type: 'join', name: saved.mpName || 'GUEST' });
             });
             conn.on('data', function (data) {
-                if (data.type === 'join') {
+                if (data.type === 'start') {
+                    start(); playSound('select');
+                }
+                else if (data.type === 'join') {
                     if (isHost) {
                         mpPlayers.push({ name: data.name, score: 0 });
                         broadcast({ type: 'update', players: mpPlayers });
@@ -470,7 +479,7 @@
                 else if (data.type === 'update') mpPlayers = data.players;
                 else if (data.type === 'score') {
                     if (isHost) {
-                        var p = mpPlayers.find(p => p.name === 'GUEST');
+                        var p = mpPlayers.find(p => p.name === data.name); // Match by name now
                         if (p) p.score = Math.max(p.score, data.score);
                         broadcast({ type: 'update', players: mpPlayers });
                     }
@@ -480,7 +489,7 @@
 
         function broadcast(msg) { if (conn) conn.send(msg); }
         function sendScore(s) {
-            if (conn) conn.send({ type: 'score', score: Math.floor(s) });
+            if (conn) conn.send({ type: 'score', score: Math.floor(s), name: saved.mpName }); // Send name too
             if (isHost) {
                 mpPlayers[0].score = Math.max(mpPlayers[0].score, Math.floor(s));
                 // Local broadcast simulation for host UI not needed since mpPlayers is shared
