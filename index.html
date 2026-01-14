@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>NEON DRIFT FINAL v15.0</title>
+    <title>NEON DRIFT FINAL v16.0</title>
     <style>
         body {
             background-color: #050510;
@@ -83,9 +83,9 @@
 <body>
 
     <div id="loader">
-        SYSTEM UPDATE v15.0<br>
-        ACTIVATING POWER-UPS...<br>
-        ENHANCING GRAPHICS...
+        SYSTEM UPDATE v16.0<br>
+        ADDING MAGNET MODULE...<br>
+        CALIBRATING SPAWNS...
     </div>
 
     <div id="quiz-overlay">
@@ -99,8 +99,9 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // === NEON DRIFT: FINAL v15.0 ===
-        // Power-ups (Shield, SlowMo, 2x, Ammo) + Enhanced Graphics
+        // === NEON DRIFT: FINAL v16.0 ===
+        // FULL Power-ups: Shield, SlowMo, 2x, Ammo, MAGNET
+        // Ammo starts at 0. Frequent spawns.
 
         window.onerror = function (msg, url, line) { alert("Hata: " + msg + "\nSatır: " + line); return false; };
         var storage = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } } };
@@ -148,16 +149,16 @@
         var score = 0, speed = 0, roadOffset = 0, starField = [], particles = [], bullets = [];
         var buildings = [];
         var reviveUsed = false;
-        var activePowerups = { shield: 0, slow: 0, x2: 0 };
+        var activePowerups = { shield: 0, slow: 0, x2: 0, mag: 0 };
         var ammo = 0;
 
-        try { var raw = storage.get('neonDataV15'); if (raw) saved = JSON.parse(raw); } catch (e) { }
+        try { var raw = storage.get('neonDataV16'); if (raw) saved = JSON.parse(raw); } catch (e) { }
         if (!saved.ownColors) saved.ownColors = { 'sport': ['CYAN'], 'suv': ['GREEN'], 'moto': ['YELLOW'], 'future': ['PURPLE'], 'retro': ['RED'] };
         if (!saved.selColor) saved.selColor = { 'sport': 'CYAN', 'suv': 'GREEN', 'moto': 'YELLOW', 'future': 'PURPLE', 'retro': 'RED' };
 
         var T = LANG[saved.lang];
 
-        // SES & TTS (Aynı)
+        // SES & TTS
         var audioCtx = null;
         function initAudio() { try { window.AudioContext = window.AudioContext || window.webkitAudioContext; audioCtx = new AudioContext(); } catch (e) { } }
         function playSound(t) {
@@ -185,12 +186,12 @@
         }
 
         window.onload = function () {
-            var V = 'v15.0';
+            var V = 'v16.0';
             if (storage.get('ver') !== V) {
                 storage.set('ver', V);
                 if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function (r) { r.forEach(function (i) { i.unregister() }) });
                 if (window.caches) caches.keys().then(function (n) { n.forEach(function (i) { caches.delete(i) }) });
-                alert("SİSTEM GÜNCELLENİYOR (v15.0)\nPower-up Paketi Yükleniyor...");
+                alert("SİSTEM GÜNCELLENİYOR (v16.0)\nMagnet ve Hızlı Mermi Özelliği Ekleniyor...");
                 setTimeout(function () { window.location.reload(true); }, 500); return;
             }
             cvs = document.getElementById('gameCanvas'); ctx = cvs.getContext('2d');
@@ -206,7 +207,7 @@
         var obs = [], gold = [], pow = [];
         var timers = { o: 0, g: 0, p: 0 };
 
-        function getX(l) { var rw = Math.min(w, 600) * 0.8, le = (w - rw) / 2, lw = rw / 3; return le + lw * l + lw / 2; } // Wider road
+        function getX(l) { var rw = Math.min(w, 600) * 0.8, le = (w - rw) / 2, lw = rw / 3; return le + lw * l + lw / 2; }
 
         function initInputs() {
             var tsX = 0, tsY = 0;
@@ -262,8 +263,8 @@
             var car = VEHICLES[saved.cur];
             player.lane = 1; player.tLane = 1; player.x = getX(1); player.m = false; player.y = h - 150;
             speed = 6 * car.speed + saved.diff; reviveUsed = false;
-            activePowerups = { shield: 0, slow: 0, x2: 0 };
-            ammo = 5; // Start ammo
+            activePowerups = { shield: 0, slow: 0, x2: 0, mag: 0 };
+            ammo = 0; // START WITH 0 AMMO (Per user request)
         }
 
         function startQuiz() {
@@ -271,11 +272,8 @@
             var correct = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
             var wrong = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
             while (wrong.e === correct.e) wrong = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-
             var langKey = saved.lang === 'TR' ? 'tr' : 'en';
-
             document.getElementById('quiz-question').innerText = T.q_prefix + "\n" + correct[langKey].toUpperCase();
-
             var d = document.getElementById('quiz-answers'); d.innerHTML = "";
             var btn1 = `<div class="quiz-btn" onclick="quizAns('${correct.e}', '${correct.e}')">${correct.e}</div>`;
             var btn2 = `<div class="quiz-btn" onclick="quizAns('WRONG', '${correct.e}')">${wrong.e}</div>`;
@@ -301,12 +299,12 @@
             // Power-up durations
             if (activePowerups.shield > 0) activePowerups.shield--;
             if (activePowerups.x2 > 0) activePowerups.x2--;
-            if (activePowerups.slow > 0) { activePowerups.slow--; speed = Math.max(5, speed * 0.95); } // Slow effect
-            else { speed = Math.min(30, speed + 0.003); } // Normal acceleration
+            if (activePowerups.mag > 0) activePowerups.mag--; // Magnet duration
+            if (activePowerups.slow > 0) { activePowerups.slow--; speed = Math.max(5, speed * 0.95); }
+            else { speed = Math.min(30, speed + 0.003); }
 
-            var scoreAdd = speed / 10; if (activePowerups.x2 > 0) scoreAdd *= 2;
-            score += scoreAdd;
-            roadOffset = (roadOffset + speed) % 40; // faster grid loop
+            var scoreAdd = speed / 10; if (activePowerups.x2 > 0) scoreAdd *= 2; score += scoreAdd;
+            roadOffset = (roadOffset + speed) % 40;
 
             if (player.m) { player.p += 15; var s = getX(player.lane), e = getX(player.tLane); player.x = s + (e - s) * Math.min(player.p / 100, 1); if (player.p >= 100) { player.lane = player.tLane; player.m = false; } }
 
@@ -321,16 +319,26 @@
                 if (i < bullets.length && bullets[i].y < -50) bullets.splice(i, 1);
             }
 
-            // Spawners
+            // Spawners & Updates
             timers.o++; if (timers.o > 100 - (speed * 1.5)) { timers.o = 0; obs.push({ x: getX(Math.floor(Math.random() * 3)), y: -50 }); }
+
+            // MAGNET LOGIC
             timers.g++; if (timers.g > 60) { timers.g = 0; if (Math.random() < 0.4) gold.push({ x: getX(Math.floor(Math.random() * 3)), y: -40 }); }
-            timers.p++; if (timers.p > 500) { // New Powerups
+            for (var i = gold.length - 1; i >= 0; i--) {
+                var g = gold[i];
+                if (activePowerups.mag > 0) { // Magnet Pull logic
+                    var dx = player.x - g.x, dy = player.y - g.y;
+                    var dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 300) { g.x += dx * 0.1; g.y += dy * 0.1; } // Pull towards player
+                }
+            }
+
+            timers.p++; if (timers.p > 250) { // Reduced from 500 to 250 for frequent spawns
                 timers.p = 0;
-                var types = ['shield', 'slow', 'x2', 'ammo'];
+                var types = ['shield', 'slow', 'x2', 'ammo', 'mag'];
                 pow.push({ x: getX(Math.floor(Math.random() * 3)), y: -40, t: types[Math.floor(Math.random() * types.length)] });
             }
 
-            // Collisions
             check(obs, 40, function (o, i) {
                 if (activePowerups.shield > 0) { activePowerups.shield = 0; playSound('powerup'); addExplosion(o.x, o.y, C.GREEN); return true; }
                 playSound('crash');
@@ -340,17 +348,18 @@
             check(gold, 50, function (g, i) { playSound('coin'); saved.coins++; score += 50; return true; });
             check(pow, 50, function (p, i) {
                 playSound('powerup');
-                if (p.t === 'shield') activePowerups.shield = 400; // ~6 sec
+                if (p.t === 'shield') activePowerups.shield = 400;
                 if (p.t === 'slow') { activePowerups.slow = 300; playSound('slow'); }
                 if (p.t === 'x2') activePowerups.x2 = 300;
                 if (p.t === 'ammo') ammo += 5;
+                if (p.t === 'mag') activePowerups.mag = 500; // ~8 sec magnet
                 return true;
             });
         }
 
         function check(arr, d, cb) { for (var i = arr.length - 1; i >= 0; i--) { arr[i].y += speed; if (Math.abs(arr[i].x - player.x) < d && Math.abs(arr[i].y - player.y) < d) { if (cb(arr[i], i)) arr.splice(i, 1); } else if (arr[i].y > h + 50) arr.splice(i, 1); } }
         function addExplosion(x, y, c) { if (saved.lowQ) return; for (var i = 0; i < 20; i++) particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 15, vy: (Math.random() - 0.5) * 15, life: 40, c: c }); }
-        function save() { storage.set('neonDataV15', JSON.stringify(saved)); }
+        function save() { storage.set('neonDataV16', JSON.stringify(saved)); }
         function glow(b, c) { if (saved.lowQ) { ctx.shadowBlur = 0; return; } ctx.shadowBlur = b; ctx.shadowColor = c || C.CYAN; }
 
         // --- DRAWING ---
@@ -366,44 +375,32 @@
             else { ctx.fillStyle = '#222'; ctx.fillRect(-22, -40, 44, 80); ctx.strokeRect(-22, -40, 44, 80); ctx.beginPath(); ctx.moveTo(-22, -10); ctx.lineTo(-10, -20); ctx.lineTo(-10, 20); ctx.lineTo(-22, 10); ctx.stroke(); ctx.beginPath(); ctx.moveTo(22, -10); ctx.lineTo(10, -20); ctx.lineTo(10, 20); ctx.lineTo(22, 10); ctx.stroke(); ctx.fillStyle = col; for (var i = 0; i < 4; i++) ctx.fillRect(-15, 25 + i * 4, 30, 2); }
 
             if (!colOverride) { glow(20, C.CYAN); ctx.fillStyle = C.CYAN; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill(); }
-            if (activePowerups.shield > 0 || player.shield > 0) { glow(30, C.BLUE); ctx.strokeStyle = C.BLUE; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 60, 0, Math.PI * 2); ctx.stroke(); } // Shield Visual
+            if (activePowerups.shield > 0 || player.shield > 0) { glow(30, C.BLUE); ctx.strokeStyle = C.BLUE; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 60, 0, Math.PI * 2); ctx.stroke(); }
+            // Magnet Visual
+            if (activePowerups.mag > 0) { glow(20, C.PURPLE); ctx.strokeStyle = C.PURPLE; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, 80 + (Date.now() % 20), 0, Math.PI * 2); ctx.stroke(); }
+
             ctx.restore(); glow(0);
         }
 
         function draw() {
             ctx.fillStyle = C.DARK; ctx.fillRect(0, 0, w, h);
 
-            // Background Grid
             ctx.strokeStyle = 'rgba(255, 0, 255, 0.1)'; ctx.lineWidth = 1;
-            var perspY = (Date.now() / 10) % 50; // Moving grid
-            // Vertical Perspective Lines
+            var perspY = (Date.now() / 10) % 50;
             for (var i = 0; i < w; i += 100) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo((i - w / 2) * 3 + w / 2, h); ctx.stroke(); }
-            // Horizontal Lines
             for (var i = 0; i < h; i += 50) { ctx.beginPath(); ctx.moveTo(0, i + perspY); ctx.lineTo(w, i + perspY); ctx.stroke(); }
 
             if (!saved.lowQ) {
                 buildings.forEach(function (b) { ctx.fillStyle = `rgba(0, 255, 255, ${0.1 * b.c})`; ctx.fillRect(b.x, b.y, b.w, b.h); });
                 ctx.fillStyle = C.WHITE; starField.forEach(function (s) { ctx.globalAlpha = Math.random() * 0.5 + 0.3; ctx.beginPath(); ctx.arc(s.x * w, s.y * h, s.s, 0, 7); ctx.fill(); }); ctx.globalAlpha = 1;
             }
-
-            var rw = Math.min(w, 600) * 0.8, rl = (w - rw) / 2; // Wider track
-            var pCol = C[saved.selColor[saved.cur] || 'CYAN'];
-
-            // Road Glow
+            var rw = Math.min(w, 600) * 0.8, rl = (w - rw) / 2, pCol = C[saved.selColor[saved.cur] || 'CYAN'];
             glow(30, pCol); ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(rl, 0, rw, h);
             ctx.strokeStyle = pCol; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(rl, 0); ctx.lineTo(rl, h); ctx.moveTo(rl + rw, 0); ctx.lineTo(rl + rw, h); ctx.stroke();
-
-            // Moving Stripes on Road
             ctx.strokeStyle = pCol; ctx.lineWidth = 2; var gy = roadOffset * 3;
-            for (var i = 0; i < h; i += 120) {
-                var y = i + gy; if (y > h) y -= h;
-                ctx.beginPath(); ctx.moveTo(rl, y); ctx.lineTo(rl + 10, y + 10); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(rl + rw, y); ctx.lineTo(rl + rw - 10, y + 10); ctx.stroke();
-            }
+            for (var i = 0; i < h; i += 120) { var y = i + gy; if (y > h) y -= h; ctx.beginPath(); ctx.moveTo(rl, y); ctx.lineTo(rl + 10, y + 10); ctx.stroke(); ctx.beginPath(); ctx.moveTo(rl + rw, y); ctx.lineTo(rl + rw - 10, y + 10); ctx.stroke(); }
             glow(0);
-
             bullets.forEach(function (b) { glow(15, C.YELLOW); ctx.strokeStyle = C.YELLOW; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x, b.y + 15); ctx.stroke(); });
-
             if (state === 'menu') drawMenu(); else if (state === 'settings') drawSettings(); else if (state === 'garage') drawGarage(); else if (state === 'playing' || state === 'quiz') drawGame(); else if (state === 'gameover') drawGameOver();
         }
 
@@ -412,29 +409,26 @@
             obs.forEach(function (o) { glow(15, C.RED); ctx.fillStyle = '#300'; ctx.strokeStyle = C.RED; ctx.lineWidth = 2; ctx.fillRect(o.x - 20, o.y - 15, 40, 30); ctx.strokeRect(o.x - 20, o.y - 15, 40, 30); });
             gold.forEach(function (g) { glow(15, C.YELLOW); ctx.fillStyle = C.YELLOW; ctx.beginPath(); ctx.arc(g.x, g.y, 10, 0, 7); ctx.fill(); ctx.fillText("$", g.x - 3, g.y + 3); });
 
-            // Draw Powerups
             pow.forEach(function (p) {
                 var col = C.GREEN; var txt = "S";
                 if (p.t === 'shield') { col = C.BLUE; txt = "🛡️"; }
                 if (p.t === 'slow') { col = C.GREEN; txt = "⏱️"; }
                 if (p.t === 'x2') { col = C.YELLOW; txt = "2X"; }
                 if (p.t === 'ammo') { col = C.RED; txt = "🔫"; }
+                if (p.t === 'mag') { col = C.PURPLE; txt = "🧲"; }
                 glow(20, col); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(p.x, p.y, 15, 0, Math.PI * 2); ctx.fill();
                 ctx.fillStyle = "#fff"; ctx.font = "20px Arial"; ctx.textAlign = "center"; ctx.fillText(txt, p.x, p.y + 7);
             });
 
             glow(0); drawPlayer(player.x, player.y, saved.cur);
-
-            // UI
             glow(5, C.PINK); ctx.fillStyle = C.PINK; ctx.font = "bold 24px Arial"; ctx.textAlign = "left"; ctx.fillText(Math.floor(score), 20, 50);
             ctx.fillStyle = C.YELLOW; ctx.textAlign = "right"; ctx.fillText("$ " + saved.coins, w - 20, 50);
 
-            // Ammo & Powerup Status
             ctx.fillStyle = C.RED; ctx.fillText(T.ammo + ": " + ammo, w - 20, 80);
             if (activePowerups.shield > 0) ctx.fillText("🛡️ " + Math.floor(activePowerups.shield / 10), w - 20, 110);
             if (activePowerups.x2 > 0) ctx.fillText("2X " + Math.floor(activePowerups.x2 / 10), w - 20, 140);
             if (activePowerups.slow > 0) ctx.fillText("⏱️ " + Math.floor(activePowerups.slow / 10), w - 20, 170);
-
+            if (activePowerups.mag > 0) ctx.fillStyle = C.PURPLE; ctx.fillText("🧲 " + Math.floor(activePowerups.mag / 10), w - 20, 200);
             glow(0);
         }
 
