@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>NEON DRIFT FINAL v19.0</title>
+    <title>NEON DRIFT FINAL v19.1</title>
     <style>
         body {
             background-color: #050510;
@@ -89,9 +89,9 @@
 <body>
 
     <div id="loader">
-        SYSTEM UPDATE v19.0<br>
-        SYNCING UI WITH PYTHON...<br>
-        REBUILDING CITYSCAPE...
+        SYSTEM UPDATE v19.1<br>
+        CALIBRATING EASY MODE FOR KIDS...<br>
+        REDUCING ACCELERATION...
     </div>
 
     <div id="quiz-overlay">
@@ -105,9 +105,9 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // === NEON DRIFT: FINAL v19.0 ===
-        // UI & Graphics Overhaul to match Python Version
-        // Pink Dot Lanes, Neon HUD, Windowed Buildings
+        // === NEON DRIFT: FINAL v19.1 ===
+        // KIDS MODE TUNING (Easy is much slower)
+        // Python Visuals Maintained
 
         window.onerror = function (msg, url, line) { alert("Hata: " + msg + "\nSatır: " + line); return false; };
         var storage = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } } };
@@ -159,7 +159,7 @@
         var activePowerups = { shield: 0, slow: 0, x2: 0, mag: 0 };
         var ammo = 0;
 
-        try { var raw = storage.get('neonDataV19'); if (raw) saved = JSON.parse(raw); } catch (e) { }
+        try { var raw = storage.get('neonDataV19_1'); if (raw) saved = JSON.parse(raw); } catch (e) { }
         if (!saved.ownColors) saved.ownColors = { 'sport': ['CYAN'], 'suv': ['GREEN'], 'moto': ['YELLOW'], 'future': ['PURPLE'], 'retro': ['RED'] };
         if (!saved.selColor) saved.selColor = { 'sport': 'CYAN', 'suv': 'GREEN', 'moto': 'YELLOW', 'future': 'PURPLE', 'retro': 'RED' };
 
@@ -193,12 +193,12 @@
         }
 
         window.onload = function () {
-            var V = 'v19.0';
+            var V = 'v19.1';
             if (storage.get('ver') !== V) {
                 storage.set('ver', V);
                 if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function (r) { r.forEach(function (i) { i.unregister() }) });
                 if (window.caches) caches.keys().then(function (n) { n.forEach(function (i) { caches.delete(i) }) });
-                alert("SİSTEM GÜNCELLENİYOR (v19.0)\nArayüz Python Sürümüyle Eşitleniyor...");
+                alert("SİSTEM GÜNCELLENİYOR (v19.1)\nÇocuk Modu Ayarlanıyor...\nHız Düşürülüyor...");
                 setTimeout(function () { window.location.reload(true); }, 500); return;
             }
             cvs = document.getElementById('gameCanvas'); ctx = cvs.getContext('2d');
@@ -274,7 +274,17 @@
             playSound('select'); state = 'playing'; score = 0; obs = []; gold = []; pow = []; particles = []; bullets = [];
             var car = VEHICLES[saved.cur];
             player.lane = 1; player.tLane = 1; player.x = getX(1); player.m = false; player.y = h - 150;
-            baseSpeed = 6 * car.speed + saved.diff; speed = baseSpeed;
+
+            // START SPEED TUNING
+            if (saved.diff === 0) {
+                // EASY MODE: Very Slow start for Kids (4-5 age)
+                baseSpeed = 4 * car.speed;
+            } else {
+                // Normal/Hard: Normal speed
+                baseSpeed = 6 * car.speed + saved.diff;
+            }
+            speed = baseSpeed;
+
             reviveUsed = false; activePowerups = { shield: 0, slow: 0, x2: 0, mag: 0 }; ammo = 0;
         }
 
@@ -310,7 +320,11 @@
             if (activePowerups.x2 > 0) activePowerups.x2--;
             if (activePowerups.mag > 0) activePowerups.mag--;
 
-            baseSpeed = Math.min(30, baseSpeed + 0.005);
+            // ACCELERATION TUNING
+            var accel = 0.005; // Normal/Hard accel
+            if (saved.diff === 0) accel = 0.001; // Easy accel (Very slow increase)
+
+            baseSpeed = Math.min(30, baseSpeed + accel);
             if (activePowerups.slow > 0) { activePowerups.slow--; speed = baseSpeed * 0.5; } else { speed = baseSpeed; }
 
             var scoreAdd = speed / 10; if (activePowerups.x2 > 0) scoreAdd *= 2; score += scoreAdd;
@@ -330,13 +344,19 @@
 
             // SPAWN
             var spawnRate = Math.max(15, 50 - (speed * 1.5));
+            if (saved.diff === 0) spawnRate = Math.max(40, 70 - (speed * 1.0)); // EASY MODE: Slower spawn rate
+
             timers.o++;
             if (timers.o > spawnRate) {
                 timers.o = 0;
                 var lanes = [0, 1, 2];
                 var l1 = lanes[Math.floor(Math.random() * lanes.length)];
                 obs.push({ x: getX(l1), y: -50, c: OBSTACLE_COLORS[Math.floor(Math.random() * OBSTACLE_COLORS.length)] });
-                if (Math.random() < 0.4 && speed > 8) {
+
+                // Double Spawn Chance (Reduced in Easy)
+                var doubleChance = (saved.diff === 0) ? 0.1 : 0.4;
+
+                if (Math.random() < doubleChance && speed > 8) {
                     lanes.splice(lanes.indexOf(l1), 1);
                     var l2 = lanes[Math.floor(Math.random() * lanes.length)];
                     obs.push({ x: getX(l2), y: -50, c: OBSTACLE_COLORS[Math.floor(Math.random() * OBSTACLE_COLORS.length)] });
@@ -379,7 +399,7 @@
 
         function check(arr, d, cb) { for (var i = arr.length - 1; i >= 0; i--) { arr[i].y += speed; if (Math.abs(arr[i].x - player.x) < d && Math.abs(arr[i].y - player.y) < d) { if (cb(arr[i], i)) arr.splice(i, 1); } else if (arr[i].y > h + 50) arr.splice(i, 1); } }
         function addExplosion(x, y, c) { if (saved.lowQ) return; for (var i = 0; i < 20; i++) particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 15, vy: (Math.random() - 0.5) * 15, life: 40, c: c }); }
-        function save() { storage.set('neonDataV19', JSON.stringify(saved)); }
+        function save() { storage.set('neonDataV19_1', JSON.stringify(saved)); }
         function glow(b, c) { if (saved.lowQ) { ctx.shadowBlur = 0; return; } ctx.shadowBlur = b; ctx.shadowColor = c || C.CYAN; }
 
         // --- DRAWING ---
@@ -499,6 +519,13 @@
             glow(20, C.CYAN); ctx.fillStyle = C.CYAN; ctx.fillText("DRIFT", cx, cy + 40); glow(0);
             ctx.fillStyle = "#fff"; ctx.font = "24px Verdana"; if (parseInt(Date.now() / 500) % 2) ctx.fillText(T.tap, cx, cy + 140);
             ctx.textAlign = "right"; ctx.fillText(T.garage + " 🚗", w - 30, 60); ctx.textAlign = "left"; ctx.fillText("⚙️ " + T.settings, 30, 60);
+
+            // Child Mode Info
+            if (saved.diff === 0) {
+                ctx.textAlign = "center";
+                ctx.fillStyle = C.GREEN; ctx.font = "bold 20px Verdana";
+                ctx.fillText("👶 KIDS MODE ACTIVE", cx, h - 20);
+            }
         }
 
         function drawSettings() {
@@ -506,7 +533,7 @@
             glow(20, C.CYAN); ctx.textAlign = "center"; ctx.fillStyle = C.CYAN; ctx.font = "bold 40px Verdana"; ctx.fillText(T.settings, cx, 80); glow(0);
             ctx.font = "24px Verdana"; ctx.fillStyle = C.WHITE; ctx.fillText(T.vol + ": " + saved.vol * 10 + "%", cx, 200);
             ctx.fillStyle = "#333"; ctx.fillRect(50, 220, w - 100, 20); ctx.fillStyle = C.GREEN; ctx.fillRect(50, 220, (w - 100) * (saved.vol / 10), 20);
-            var diffT = ["EASY", "NORMAL", "HARD"];
+            var diffT = ["EASY (KIDS)", "NORMAL", "HARD"];
             ctx.fillStyle = C.WHITE; ctx.fillText(T.diff + ": " + diffT[saved.diff], cx, 300);
             ctx.fillStyle = C.BLUE; ctx.fillRect(cx - 100, 320, 200, 40); ctx.fillStyle = "#fff"; ctx.fillText(diffT[saved.diff], cx, 347);
             ctx.fillStyle = C.WHITE; ctx.fillText("LANGUAGE: " + saved.lang, cx, 400);
