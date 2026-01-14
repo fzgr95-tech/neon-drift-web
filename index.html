@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>NEON DRIFT FINAL v12.0</title>
+    <title>NEON DRIFT FINAL v12.1</title>
     <style>
         body {
             background-color: #050510;
@@ -82,9 +82,9 @@
 <body>
 
     <div id="loader">
-        RESTORING EMOJI DATABASE...<br>
-        SYNCING VOCABULARY...<br>
-        [COMPLETED]
+        SYSTEM UPDATE v12.1<br>
+        CLEARING CACHE...<br>
+        LOADING EMOJIS...
     </div>
 
     <div id="quiz-overlay">
@@ -98,8 +98,8 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // === NEON DRIFT: FINAL v12.0 ===
-        // Emoji Quiz System Restored
+        // === NEON DRIFT: FINAL v12.1 ===
+        // Force Update Script Added
 
         window.onerror = function (msg, url, line) { alert("Hata: " + msg + "\nSatır: " + line); return false; };
         var storage = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } } };
@@ -165,6 +165,17 @@
         GainNode.prototype.env = function (v, t) { this.gain.setValueAtTime(v, audioCtx.currentTime); this.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + t); };
 
         window.onload = function () {
+            // FORCE UPDATE v12.1
+            var V = 'v12.1';
+            if (storage.get('ver') !== V) {
+                storage.set('ver', V);
+                if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function (r) { r.forEach(function (i) { i.unregister() }) });
+                if (window.caches) caches.keys().then(function (n) { n.forEach(function (i) { caches.delete(i) }) });
+                alert("GÜNCELLEME TESPİT EDİLDİ!\nEmojiler yükleniyor (v12.1)...");
+                setTimeout(function () { window.location.reload(true); }, 500);
+                return;
+            }
+
             cvs = document.getElementById('gameCanvas'); ctx = cvs.getContext('2d');
             for (var i = 0; i < 60; i++) starField.push({ x: Math.random(), y: Math.random(), s: Math.random() * 2 });
             for (var i = 0; i < 20; i++) buildings.push({ x: Math.random() * 1000, w: 30 + Math.random() * 50, h: 50 + Math.random() * 150, c: Math.random() });
@@ -285,7 +296,6 @@
 
             check(obs, 40, function (o, i) {
                 if (player.shield > 0) { player.shield = 0; playSound('crash'); addExplosion(o.x, o.y, C.GREEN); return true; }
-                // ARMOR REMOVED
                 playSound('crash');
                 if (!reviveUsed) startQuiz(); else die();
                 return false;
