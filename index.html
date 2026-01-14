@@ -5,41 +5,377 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <meta name="theme-color" content="#0a0a0f">
-    <meta name="description" content="Neon Drift - Cyberpunk Endless Runner Game">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>NEON DRIFT</title>
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/png" href="icon-192.png">
-    <link rel="apple-touch-icon" href="icon-192.png">
-    <link rel="stylesheet" href="styles.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #0a0a0f;
+            touch-action: none;
+            user-select: none;
+        }
+
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
 </head>
 
 <body>
-    <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
-
-        <!-- Touch Controls -->
-        <div id="touch-controls">
-            <div id="left-zone" class="touch-zone"></div>
-            <div id="right-zone" class="touch-zone"></div>
-        </div>
-
-        <!-- Touch Indicators -->
-        <div id="left-indicator" class="touch-indicator">◀</div>
-        <div id="right-indicator" class="touch-indicator">▶</div>
-    </div>
-
-
-
-    <script src="game.js"></script>
+    <canvas id="gameCanvas"></canvas>
     <script>
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(reg => console.log('SW registered'))
-                .catch(err => console.log('SW failed', err));
+        // NEON DRIFT - Simplified Web Version
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Resize canvas
+        function resize() {
+            canvas.width = Math.min(window.innerWidth, 400);
+            canvas.height = window.innerHeight;
         }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // Colors
+        const CYAN = '#00ffff';
+        const PINK = '#ff00ff';
+        const RED = '#ff3366';
+        const YELLOW = '#ffff00';
+        const GREEN = '#00ff64';
+        const GRAY = '#1e1e28';
+        const WHITE = '#ffffff';
+
+        // Game state
+        let state = 'menu';
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('neonDriftHS')) || 0;
+        let speed = 5;
+
+        // Road
+        const roadWidth = canvas.width * 0.75;
+        const roadLeft = (canvas.width - roadWidth) / 2;
+        const laneWidth = roadWidth / 3;
+
+        function getLaneX(lane) {
+            return roadLeft + laneWidth * lane + laneWidth / 2;
+        }
+
+        // Player
+        let playerLane = 1;
+        let playerX = getLaneX(1);
+        let playerY = canvas.height - 100;
+        let targetLane = 1;
+        let moving = false;
+        let moveProgress = 0;
+
+        // Obstacles & Coins
+        let obstacles = [];
+        let coins = [];
+        let obstacleTimer = 0;
+        let coinTimer = 0;
+        let roadOffset = 0;
+
+        // Touch controls
+        let touchStartX = 0;
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            touchStartX = e.touches[0].clientX;
+            if (state === 'menu' || state === 'gameover') {
+                startGame();
+            }
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const touchEndX = e.changedTouches[0].clientX;
+            const diff = touchEndX - touchStartX;
+            if (state === 'playing') {
+                if (diff < -30 && playerLane > 0 && !moving) {
+                    targetLane = playerLane - 1;
+                    moving = true;
+                    moveProgress = 0;
+                } else if (diff > 30 && playerLane < 2 && !moving) {
+                    targetLane = playerLane + 1;
+                    moving = true;
+                    moveProgress = 0;
+                }
+            }
+        });
+
+        // Keyboard
+        document.addEventListener('keydown', (e) => {
+            if (state === 'menu' || state === 'gameover') {
+                if (e.key === ' ' || e.key === 'Enter') startGame();
+            } else if (state === 'playing') {
+                if (e.key === 'ArrowLeft' && playerLane > 0 && !moving) {
+                    targetLane = playerLane - 1;
+                    moving = true;
+                    moveProgress = 0;
+                } else if (e.key === 'ArrowRight' && playerLane < 2 && !moving) {
+                    targetLane = playerLane + 1;
+                    moving = true;
+                    moveProgress = 0;
+                }
+            }
+        });
+
+        // Click
+        canvas.addEventListener('click', () => {
+            if (state === 'menu' || state === 'gameover') startGame();
+        });
+
+        function startGame() {
+            state = 'playing';
+            score = 0;
+            speed = 5;
+            playerLane = 1;
+            targetLane = 1;
+            playerX = getLaneX(1);
+            moving = false;
+            obstacles = [];
+            coins = [];
+        }
+
+        function gameOver() {
+            state = 'gameover';
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('neonDriftHS', highScore);
+            }
+        }
+
+        // Update
+        function update() {
+            roadOffset = (roadOffset + speed) % 40;
+
+            if (state !== 'playing') return;
+
+            // Move player
+            if (moving) {
+                moveProgress += 10;
+                const startX = getLaneX(playerLane);
+                const endX = getLaneX(targetLane);
+                const t = Math.min(moveProgress / 100, 1);
+                playerX = startX + (endX - startX) * t * t * (3 - 2 * t);
+                if (moveProgress >= 100) {
+                    playerLane = targetLane;
+                    playerX = getLaneX(playerLane);
+                    moving = false;
+                }
+            }
+
+            // Spawn obstacles
+            obstacleTimer++;
+            if (obstacleTimer > Math.max(40, 80 - speed * 2)) {
+                const lane = Math.floor(Math.random() * 3);
+                obstacles.push({ x: getLaneX(lane), y: -40, lane: lane });
+                obstacleTimer = 0;
+            }
+
+            // Spawn coins
+            coinTimer++;
+            if (coinTimer > 100) {
+                const lane = Math.floor(Math.random() * 3);
+                coins.push({ x: getLaneX(lane), y: -20 });
+                coinTimer = 0;
+            }
+
+            // Update obstacles
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].y += speed;
+                // Collision
+                if (Math.abs(obstacles[i].x - playerX) < 30 &&
+                    Math.abs(obstacles[i].y - playerY) < 40) {
+                    gameOver();
+                }
+                if (obstacles[i].y > canvas.height + 50) {
+                    obstacles.splice(i, 1);
+                }
+            }
+
+            // Update coins
+            for (let i = coins.length - 1; i >= 0; i--) {
+                coins[i].y += speed;
+                if (Math.abs(coins[i].x - playerX) < 25 &&
+                    Math.abs(coins[i].y - playerY) < 35) {
+                    score += 10;
+                    coins.splice(i, 1);
+                    continue;
+                }
+                if (coins[i].y > canvas.height + 30) {
+                    coins.splice(i, 1);
+                }
+            }
+
+            score += 1;
+            speed = Math.min(15, speed + 0.002);
+        }
+
+        // Draw
+        function draw() {
+            // Background
+            ctx.fillStyle = '#0a0a0f';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Road
+            ctx.fillStyle = GRAY;
+            ctx.fillRect(roadLeft, 0, roadWidth, canvas.height);
+
+            // Road edges
+            ctx.strokeStyle = PINK;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(roadLeft, 0);
+            ctx.lineTo(roadLeft, canvas.height);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(roadLeft + roadWidth, 0);
+            ctx.lineTo(roadLeft + roadWidth, canvas.height);
+            ctx.stroke();
+
+            // Lane lines
+            ctx.strokeStyle = CYAN;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([30, 20]);
+            for (let i = 1; i < 3; i++) {
+                const x = roadLeft + laneWidth * i;
+                ctx.beginPath();
+                ctx.moveTo(x, -roadOffset);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
+
+            if (state === 'menu') {
+                drawMenu();
+            } else if (state === 'playing') {
+                drawGame();
+                drawHUD();
+            } else if (state === 'gameover') {
+                drawGame();
+                drawGameOver();
+            }
+        }
+
+        function drawMenu() {
+            ctx.textAlign = 'center';
+            ctx.fillStyle = PINK;
+            ctx.font = 'bold 36px Arial';
+            ctx.fillText('NEON', canvas.width / 2 - 50, 150);
+            ctx.fillStyle = CYAN;
+            ctx.fillText('DRIFT', canvas.width / 2 + 50, 150);
+
+            ctx.fillStyle = YELLOW;
+            ctx.font = '16px Arial';
+            ctx.fillText('En Yüksek: ' + highScore, canvas.width / 2, 200);
+
+            ctx.fillStyle = WHITE;
+            ctx.font = '18px Arial';
+            ctx.fillText('DOKUNARAK BAŞLA', canvas.width / 2, canvas.height - 100);
+
+            ctx.fillStyle = '#666';
+            ctx.font = '14px Arial';
+            ctx.fillText('Sola/Sağa kaydır', canvas.width / 2, canvas.height - 70);
+        }
+
+        function drawGame() {
+            // Draw coins
+            coins.forEach(c => {
+                ctx.fillStyle = YELLOW;
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = WHITE;
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('$', c.x, c.y + 4);
+            });
+
+            // Draw obstacles
+            obstacles.forEach(o => {
+                ctx.fillStyle = GRAY;
+                ctx.strokeStyle = RED;
+                ctx.lineWidth = 2;
+                ctx.fillRect(o.x - 25, o.y - 18, 50, 36);
+                ctx.strokeRect(o.x - 25, o.y - 18, 50, 36);
+            });
+
+            // Draw player
+            ctx.fillStyle = GRAY;
+            ctx.strokeStyle = CYAN;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(playerX - 18, playerY + 30);
+            ctx.lineTo(playerX - 22, playerY);
+            ctx.lineTo(playerX - 15, playerY - 25);
+            ctx.lineTo(playerX, playerY - 35);
+            ctx.lineTo(playerX + 15, playerY - 25);
+            ctx.lineTo(playerX + 22, playerY);
+            ctx.lineTo(playerX + 18, playerY + 30);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Headlights
+            ctx.fillStyle = CYAN;
+            ctx.beginPath();
+            ctx.arc(playerX - 8, playerY - 28, 3, 0, Math.PI * 2);
+            ctx.arc(playerX + 8, playerY - 28, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Tail lights
+            ctx.fillStyle = PINK;
+            ctx.fillRect(playerX - 15, playerY + 26, 8, 3);
+            ctx.fillRect(playerX + 7, playerY + 26, 8, 3);
+        }
+
+        function drawHUD() {
+            ctx.fillStyle = CYAN;
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(score, 20, 40);
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.textAlign = 'center';
+            ctx.fillStyle = RED;
+            ctx.font = 'bold 32px Arial';
+            ctx.fillText('OYUN BİTTİ', canvas.width / 2, canvas.height / 2 - 40);
+
+            ctx.fillStyle = CYAN;
+            ctx.font = '20px Arial';
+            ctx.fillText('Skor: ' + score, canvas.width / 2, canvas.height / 2);
+
+            if (score >= highScore) {
+                ctx.fillStyle = YELLOW;
+                ctx.fillText('YENİ REKOR!', canvas.width / 2, canvas.height / 2 + 30);
+            }
+
+            ctx.fillStyle = WHITE;
+            ctx.font = '16px Arial';
+            ctx.fillText('Tekrar oyna: Dokun', canvas.width / 2, canvas.height / 2 + 80);
+        }
+
+        // Game loop
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
     </script>
 </body>
 
