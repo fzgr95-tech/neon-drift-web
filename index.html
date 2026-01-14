@@ -12,6 +12,8 @@
     <meta name="apple-mobile-web-app-title" content="Neon Blitz">
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
+    <!-- PeerJS for Multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body {
             background-color: #050510;
@@ -120,8 +122,8 @@
         var storage = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } } };
 
         var LANG = {
-            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "SKOR", coin: "ALTIN", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK", q_prefix: "Hangisi:", speak_prefix: "Aşağıdakilerden hangisi", color: "RENK", price: "Fiyat", ammo: "MERMİ", kspeed: "ÇOCUK HIZI", paused: "DURAKLATILDI", resume: "DEVAM ET", menu: "ANA MENÜ", quiz_title: "SESLİ KOMUT SİSTEMİ", buy_color: "SATIN ALARAK RENK DEĞİŞTİR", error: "Hata", line: "Satır", kids_mode: "ÇOCUK MODU AKTİF", confirm_buy: "Bu rengi almak istiyor musun?", yes: "EVET", no: "HAYIR", gold: "Altın" },
-            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "SCORE", coin: "GOLD", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS", q_prefix: "Which is:", speak_prefix: "Which one is", color: "COLOR", price: "Price", ammo: "AMMO", kspeed: "KIDS SPEED", paused: "PAUSED", resume: "RESUME", menu: "MAIN MENU", quiz_title: "VOICE COMMAND SYSTEM", buy_color: "BUY TO CHANGE COLOR", error: "Error", line: "Line", kids_mode: "KIDS MODE ACTIVE", confirm_buy: "Do you want to buy this color?", yes: "YES", no: "NO", gold: "Gold" }
+            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "SKOR", coin: "ALTIN", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK", q_prefix: "Hangisi:", speak_prefix: "Aşağıdakilerden hangisi", color: "RENK", price: "Fiyat", ammo: "MERMİ", kspeed: "ÇOCUK HIZI", paused: "DURAKLATILDI", resume: "DEVAM ET", menu: "ANA MENÜ", quiz_title: "SESLİ KOMUT SİSTEMİ", buy_color: "SATIN ALARAK RENK DEĞİŞTİR", error: "Hata", line: "Satır", kids_mode: "ÇOCUK MODU AKTİF", confirm_buy: "Bu rengi almak istiyor musun?", yes: "EVET", no: "HAYIR", gold: "Altın", mp_title: "ÇOK OYUNCULU", mp_create: "ODA KUR", mp_join: "ODAYA KATIL", mp_code: "ODA KODU:", mp_enter: "KODU GİR:", mp_connect: "BAĞLAN", mp_copy: "KOPYALA", mp_wait: "Oyuncu bekleniyor...", mp_players: "OYUNCULAR" },
+            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "SCORE", coin: "GOLD", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS", q_prefix: "Which is:", speak_prefix: "Which one is", color: "COLOR", price: "Price", ammo: "AMMO", kspeed: "KIDS SPEED", paused: "PAUSED", resume: "RESUME", menu: "MAIN MENU", quiz_title: "VOICE COMMAND SYSTEM", buy_color: "BUY TO CHANGE COLOR", error: "Error", line: "Line", kids_mode: "KIDS MODE ACTIVE", confirm_buy: "Do you want to buy this color?", yes: "YES", no: "NO", gold: "Gold", mp_title: "MULTIPLAYER", mp_create: "CREATE ROOM", mp_join: "JOIN ROOM", mp_code: "ROOM CODE:", mp_enter: "ENTER CODE:", mp_connect: "CONNECT", mp_copy: "COPY", mp_wait: "Waiting for players...", mp_players: "PLAYERS" }
         };
 
         var EMOJIS = [
@@ -165,7 +167,17 @@
         var reviveUsed = false;
         var activePowerups = { shield: 0, slow: 0, x2: 0, mag: 0 };
         var ammo = 0;
+        var ammo = 0;
         var pendingColor = null; // For color purchase confirmation
+
+        // Multiplayer Variables
+        var peer = null;
+        var conn = null;
+        var myId = null;
+        var hostId = null;
+        var isHost = false;
+        var mpPlayers = []; // { id, name, score }
+        var mpState = 'none'; // none, menu, host, join, lobby
 
         try { var raw = storage.get('neonDataV20'); if (raw) saved = JSON.parse(raw); } catch (e) { }
         // Fallbacks for new keys
@@ -265,7 +277,16 @@
             if (state === 'menu') {
                 if (y < 150 && x < 150) { playSound('select'); state = 'settings'; return; }
                 if (y < 150 && x > w - 150) { playSound('select'); state = 'garage'; return; }
-                if (y > h / 3) start();
+
+                // Multiplayer Button Tap (cy + 100 to cy + 150)
+                var cy = h / 2;
+                if (y > cy + 100 && y < cy + 150 && x > w / 2 - 120 && x < w / 2 + 120) {
+                    state = 'multiplayer'; mpState = 'menu'; playSound('select'); return;
+                }
+
+                if (y > cy + 160) start();
+            } else if (state === 'multiplayer') {
+                handleMultiplayerTap(x, y);
             } else if (state === 'settings') {
                 if (y < 150 && x < 150) { playSound('select'); state = 'menu'; save(); return; }
                 if (y > 200 && y < 250) { saved.vol = Math.floor(Math.max(0, Math.min(10, (x - 50) / ((w - 100) / 10)))); playSound('select'); }
@@ -299,6 +320,164 @@
                 // NO button
                 if (x > w / 2 + 10 && x < w / 2 + 110 && y > h / 2 + 30 && y < h / 2 + 80) { confirmColorPurchase(false); return; }
             } else if (state === 'gameover') { state = 'menu'; }
+        }
+
+        // --- MULTIPLAYER SYSTEM (PeerJS) ---
+        var enteredCode = "";
+
+        function handleMultiplayerTap(x, y) {
+            var cx = w / 2, cy = h / 2;
+
+            // Back Button (Top Left)
+            if (y < 80 && x < 80) {
+                if (conn) { conn.close(); conn = null; }
+                if (peer) { peer.destroy(); peer = null; }
+                mpState = 'none'; state = 'menu'; playSound('select'); return;
+            }
+
+            if (mpState === 'menu') {
+                // CREATE ROOM
+                if (y > cy - 60 && y < cy && x > cx - 100 && x < cx + 100) {
+                    mpState = 'host'; initHost(); playSound('select');
+                }
+                // JOIN ROOM
+                if (y > cy + 20 && y < cy + 80 && x > cx - 100 && x < cx + 100) {
+                    mpState = 'join'; enteredCode = ""; playSound('select');
+                }
+            } else if (mpState === 'join') {
+                // Number Pad logic
+                var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'OK'];
+                var px = cx - 90, py = cy + 50;
+                for (var i = 0; i < keys.length; i++) {
+                    var kx = px + (i % 3) * 60, ky = py + Math.floor(i / 3) * 60;
+                    if (x > kx && x < kx + 50 && y > ky && y < ky + 50) {
+                        var k = keys[i];
+                        if (k === 'C') enteredCode = "";
+                        else if (k === 'OK') { if (enteredCode.length === 4) joinRoom(enteredCode); }
+                        else if (enteredCode.length < 4) enteredCode += k;
+                        playSound('select');
+                    }
+                }
+            } else if (mpState === 'host' || mpState === 'lobby') {
+                // Copy Code
+                if (mpState === 'host' && y > cy && y < cy + 50) {
+                    navigator.clipboard.writeText(myId); playSound('coin');
+                }
+            }
+        }
+
+        function drawMultiplayer() {
+            ctx.fillStyle = "#1a0b2e"; ctx.fillRect(0, 0, w, h);
+            var cx = w / 2, cy = h / 2;
+            glow(20, C.PURPLE); ctx.textAlign = "center"; ctx.fillStyle = C.PURPLE; ctx.font = "bold 40px Verdana"; ctx.fillText(T.mp_title, cx, 60); glow(0);
+            ctx.textAlign = "left"; ctx.fillStyle = "#fff"; ctx.font = "30px Verdana"; ctx.fillText("🔙", 30, 50);
+
+            if (mpState === 'menu') {
+                glow(10, C.CYAN); ctx.fillStyle = C.CYAN; ctx.fillRect(cx - 100, cy - 60, 200, 60);
+                ctx.fillStyle = "#000"; ctx.font = "bold 24px Verdana"; ctx.textAlign = "center"; ctx.fillText(T.mp_create, cx, cy - 25);
+                glow(10, C.PINK); ctx.fillStyle = C.PINK; ctx.fillRect(cx - 100, cy + 20, 200, 60);
+                ctx.fillStyle = "#000"; ctx.fillText(T.mp_join, cx, cy + 55); glow(0);
+            }
+            else if (mpState === 'host' || mpState === 'lobby') {
+                ctx.textAlign = "center";
+                if (myId) {
+                    ctx.fillStyle = C.WHITE; ctx.font = "20px Verdana"; ctx.fillText(T.mp_code, cx, cy - 80);
+                    ctx.fillStyle = C.YELLOW; ctx.font = "bold 60px Verdana"; ctx.fillText(myId, cx, cy - 20);
+                } else {
+                    ctx.fillStyle = C.WHITE; ctx.fillText("Creating Room...", cx, cy);
+                }
+
+                // Player List
+                if (mpPlayers.length > 0) {
+                    mpState = 'lobby';
+                    ctx.fillStyle = C.GREEN; ctx.font = "20px Verdana"; ctx.fillText(T.mp_players, cx, cy + 60);
+                    for (var i = 0; i < mpPlayers.length; i++) {
+                        ctx.fillStyle = "#fff"; ctx.fillText(mpPlayers[i].name + ": " + mpPlayers[i].score, cx, cy + 100 + i * 30);
+                    }
+                } else if (myId) {
+                    ctx.fillStyle = "#aaa"; ctx.font = "16px Verdana"; ctx.fillText(T.mp_wait, cx, cy + 60);
+                    ctx.fillStyle = C.CYAN; ctx.font = "14px Verdana"; ctx.fillText("(Click code to copy)", cx, cy + 20);
+                }
+            }
+            else if (mpState === 'join') {
+                ctx.textAlign = "center";
+                ctx.fillStyle = C.WHITE; ctx.font = "20px Verdana"; ctx.fillText(T.mp_enter, cx, cy - 80);
+
+                // Code Box
+                ctx.fillStyle = "#333"; ctx.fillRect(cx - 100, cy - 60, 200, 50);
+                ctx.fillStyle = C.YELLOW; ctx.font = "40px Verdana"; ctx.fillText(enteredCode, cx, cy - 22);
+
+                // Numpad
+                var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'OK'];
+                var px = cx - 90, py = cy + 50;
+                for (var i = 0; i < keys.length; i++) {
+                    var kx = px + (i % 3) * 60, ky = py + Math.floor(i / 3) * 60;
+                    ctx.fillStyle = "#444";
+                    if (keys[i] === 'OK') ctx.fillStyle = C.GREEN;
+                    if (keys[i] === 'C') ctx.fillStyle = C.RED;
+                    ctx.fillRect(kx, ky, 50, 50);
+                    ctx.fillStyle = "#fff"; ctx.font = "20px Verdana"; ctx.fillText(keys[i], kx + 25, ky + 32);
+                }
+            }
+        }
+
+        // --- PeerJS Logic ---
+        function initHost() {
+            if (peer) return;
+            myId = Math.floor(1000 + Math.random() * 9000).toString();
+            peer = new Peer('nb-' + myId);
+            isHost = true;
+            mpPlayers = [{ name: 'HOST', score: 0 }];
+
+            peer.on('open', function (id) { console.log('My peer ID is: ' + id); });
+            peer.on('connection', function (c) {
+                conn = c;
+                setupConnection();
+            });
+            peer.on('error', function (err) { alert("PeerJS Error: " + err); });
+        }
+
+        function joinRoom(code) {
+            if (peer) return;
+            peer = new Peer();
+            isHost = false;
+            peer.on('open', function (id) {
+                conn = peer.connect('nb-' + code);
+                setupConnection();
+            });
+            peer.on('error', function (err) { alert("Connection Error. Check code."); });
+        }
+
+        function setupConnection() {
+            conn.on('open', function () {
+                mpState = 'lobby';
+                conn.send({ type: 'join', name: 'GUEST' });
+            });
+            conn.on('data', function (data) {
+                if (data.type === 'join') {
+                    if (isHost) {
+                        mpPlayers.push({ name: data.name, score: 0 });
+                        broadcast({ type: 'update', players: mpPlayers });
+                    }
+                }
+                else if (data.type === 'update') mpPlayers = data.players;
+                else if (data.type === 'score') {
+                    if (isHost) {
+                        var p = mpPlayers.find(p => p.name === 'GUEST');
+                        if (p) p.score = Math.max(p.score, data.score);
+                        broadcast({ type: 'update', players: mpPlayers });
+                    }
+                }
+            });
+        }
+
+        function broadcast(msg) { if (conn) conn.send(msg); }
+        function sendScore(s) {
+            if (conn) conn.send({ type: 'score', score: Math.floor(s) });
+            if (isHost) {
+                mpPlayers[0].score = Math.max(mpPlayers[0].score, Math.floor(s));
+                // Local broadcast simulation for host UI not needed since mpPlayers is shared
+            }
         }
 
         function move(d) { var n = player.lane + d; if (n >= 0 && n <= 2 && !player.m) { player.tLane = n; player.m = true; player.p = 0; } }
@@ -338,7 +517,7 @@
             document.getElementById('quiz-overlay').style.display = 'none'; window.speechSynthesis.cancel();
             if (val === correct) { state = 'playing'; activePowerups.shield = 200; reviveUsed = true; obs = []; playSound('powerup'); } else { die(); }
         };
-        function die() { state = 'gameover'; if (score > saved.high) saved.high = Math.floor(score); saved.coins += Math.floor(score / 10); save(); }
+        function die() { state = 'gameover'; if (score > saved.high) saved.high = Math.floor(score); saved.coins += Math.floor(score / 10); save(); sendScore(score); }
         function loop() { update(); draw(); requestAnimationFrame(loop); }
 
         function update() {
@@ -491,6 +670,7 @@
             else if (state === 'garage') drawGarage();
             else if (state === 'playing' || state === 'paused' || state === 'quiz') drawGame();
             else if (state === 'gameover') drawGameOver();
+            else if (state === 'multiplayer') drawMultiplayer();
             else if (state === 'colorConfirm') drawColorConfirm();
         }
 
@@ -565,7 +745,12 @@
         function drawMenu() {
             var cx = w / 2, cy = h / 2; glow(20, C.PINK); ctx.textAlign = "center"; ctx.fillStyle = C.PINK; ctx.font = "bold 80px Verdana"; ctx.fillText("NEON", cx, cy - 60);
             glow(20, C.CYAN); ctx.fillStyle = C.CYAN; ctx.fillText("BLITZ", cx, cy + 40); glow(0);
-            ctx.fillStyle = "#fff"; ctx.font = "24px Verdana"; if (parseInt(Date.now() / 500) % 2) ctx.fillText(T.tap, cx, cy + 140);
+
+            // Multiplayer Button
+            glow(15, C.PURPLE); ctx.fillStyle = C.PURPLE; ctx.fillRect(cx - 120, cy + 100, 240, 50);
+            ctx.fillStyle = "#fff"; ctx.font = "bold 24px Verdana"; ctx.fillText(T.mp_title, cx, cy + 133); glow(0);
+
+            ctx.fillStyle = "#fff"; ctx.font = "20px Verdana"; if (parseInt(Date.now() / 500) % 2) ctx.fillText(T.tap, cx, cy + 200);
             ctx.textAlign = "right"; ctx.fillText(T.garage + " 🚗", w - 30, 60); ctx.textAlign = "left"; ctx.fillText("⚙️ " + T.settings, 30, 60);
             if (saved.diff === 0) { ctx.textAlign = "center"; ctx.fillStyle = C.GREEN; ctx.font = "bold 20px Verdana"; ctx.fillText("👶 " + T.kids_mode, cx, h - 20); }
         }
