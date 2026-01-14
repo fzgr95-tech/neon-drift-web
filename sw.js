@@ -1,13 +1,11 @@
 // Service Worker for Neon Drift PWA
 const CACHE_NAME = 'neon-drift-v1';
 const urlsToCache = [
-    '/',
-    '/index.html',
-    '/styles.css',
-    '/game.js',
-    '/manifest.json',
-    '/icon-192.png',
-    '/icon-512.png'
+    './',
+    './index.html',
+    './manifest.json',
+    './icon-192.png',
+    './icon-512.png'
 ];
 
 // Install

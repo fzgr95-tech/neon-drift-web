@@ -1,8 +1,9 @@
 {
     "name": "Neon Drift",
     "short_name": "NeonDrift",
-    "description": "Cyberpunk Endless Runner Game",
-    "start_url": "/",
+    "description": "Cyberpunk Endless Runner Game (v20.0)",
+    "version": "20.0",
+    "start_url": "./index.html",
     "display": "fullscreen",
     "orientation": "portrait",
     "background_color": "#0a0a0f",
