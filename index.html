@@ -312,7 +312,7 @@
             if (saved.diff === 0) {
                 baseSpeed = 2 + (saved.kSpeed * 0.5);
             } else {
-                baseSpeed = 6 * car.speed + saved.diff;
+                baseSpeed = 10 * car.speed + saved.diff * 2;
             }
             speed = baseSpeed;
 
