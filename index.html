@@ -333,7 +333,7 @@
             if (mpState === 'menu') {
                 // CREATE ROOM
                 if (y > cy - 60 && y < cy && x > cx - 100 && x < cx + 100) {
-                    if (!saved.mpName) { saved.mpName = prompt("İsminiz / Name:", "Player") || "Player"; save(); }
+                    try { if (!saved.mpName) saved.mpName = prompt("İsminiz / Name:", "Player") || "Player"; save(); } catch (e) { saved.mpName = "Player"; }
                     mpState = 'host'; initHost(); playSound('select');
                 }
                 // JOIN ROOM
@@ -351,7 +351,7 @@
                         if (k === 'C') enteredCode = "";
                         else if (k === 'OK') {
                             if (enteredCode.length === 4) {
-                                if (!saved.mpName) { saved.mpName = prompt("İsminiz / Name:", "Player") || "Player"; save(); }
+                                try { if (!saved.mpName) saved.mpName = prompt("İsminiz / Name:", "Player") || "Player"; save(); } catch (e) { saved.mpName = "Player"; }
                                 joinRoom(enteredCode);
                             }
                         }
@@ -438,7 +438,7 @@
         function initHost() {
             if (peer) return;
             myId = Math.floor(1000 + Math.random() * 9000).toString();
-            peer = new Peer('nb-' + myId);
+            peer = new Peer('nbroom-' + myId);
             isHost = true;
             mpPlayers = [{ name: saved.mpName || 'HOST', score: 0 }];
 
@@ -447,7 +447,7 @@
                 conn = c;
                 setupConnection();
             });
-            peer.on('error', function (err) { alert("PeerJS Error: " + err); });
+            peer.on('error', function (err) { alert("Bağlantı Hatası / Connection Error: " + err); mpState = 'menu'; });
         }
 
         function joinRoom(code) {
@@ -455,10 +455,10 @@
             peer = new Peer();
             isHost = false;
             peer.on('open', function (id) {
-                conn = peer.connect('nb-' + code);
+                conn = peer.connect('nbroom-' + code);
                 setupConnection();
             });
-            peer.on('error', function (err) { alert("Connection Error. Check code."); });
+            peer.on('error', function (err) { alert("Hata / Error: " + err); mpState = 'menu'; });
         }
 
         function setupConnection() {
