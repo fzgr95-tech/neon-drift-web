@@ -4,12 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>NEON DRIFT FINAL v20.0</title>
+    <title>NEON BLITZ v22.0</title>
     <!-- iOS Support -->
     <link rel="apple-touch-icon" href="icon-192.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Neon Drift">
+    <meta name="apple-mobile-web-app-title" content="Neon Blitz">
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
     <style>
@@ -557,7 +557,7 @@
 
         function drawMenu() {
             var cx = w / 2, cy = h / 2; glow(20, C.PINK); ctx.textAlign = "center"; ctx.fillStyle = C.PINK; ctx.font = "bold 80px Verdana"; ctx.fillText("NEON", cx, cy - 60);
-            glow(20, C.CYAN); ctx.fillStyle = C.CYAN; ctx.fillText("DRIFT", cx, cy + 40); glow(0);
+            glow(20, C.CYAN); ctx.fillStyle = C.CYAN; ctx.fillText("BLITZ", cx, cy + 40); glow(0);
             ctx.fillStyle = "#fff"; ctx.font = "24px Verdana"; if (parseInt(Date.now() / 500) % 2) ctx.fillText(T.tap, cx, cy + 140);
             ctx.textAlign = "right"; ctx.fillText(T.garage + " 🚗", w - 30, 60); ctx.textAlign = "left"; ctx.fillText("⚙️ " + T.settings, 30, 60);
             if (saved.diff === 0) { ctx.textAlign = "center"; ctx.fillStyle = C.GREEN; ctx.font = "bold 20px Verdana"; ctx.fillText("👶 KIDS MODE ACTIVE", cx, h - 20); }
