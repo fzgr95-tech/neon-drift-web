@@ -12,7 +12,7 @@ const COLORS = {
     NEON_PURPLE: '#b400ff',
     NEON_RED: '#ff3366',
     NEON_ORANGE: '#ff6400',
-    NEON_GREEN: '#00ff64',
+    NEON_GREEN: '#00ff4cff',
     NEON_YELLOW: '#ffff00',
     WHITE: '#ffffff',
     DARK_GRAY: '#1e1e28'
