@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>NEON DRIFT FINAL v17.0</title>
+    <title>NEON DRIFT FINAL v18.0</title>
     <style>
         body {
             background-color: #050510;
@@ -83,9 +83,9 @@
 <body>
 
     <div id="loader">
-        SYSTEM UPDATE v17.0<br>
-        FIXING SPEED MODULE...<br>
-        INCREASING OBSTACLE DENSITY...
+        SYSTEM UPDATE v18.0<br>
+        RESTORING PYTHON GRAPHICS...<br>
+        MAXIMIZING OBSTACLE DENSITY...
     </div>
 
     <div id="quiz-overlay">
@@ -99,9 +99,9 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // === NEON DRIFT: FINAL v17.0 ===
-        // Speed Logic Rewrite (BaseSpeed vs CurrentSpeed)
-        // More Obstacles
+        // === NEON DRIFT: FINAL v18.0 ===
+        // Restored Python Graphics (Striped Obstacles)
+        // Aggressive Spawning (Double Obstacles)
 
         window.onerror = function (msg, url, line) { alert("Hata: " + msg + "\nSatır: " + line); return false; };
         var storage = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } } };
@@ -128,6 +128,7 @@
         ];
 
         var C = { CYAN: '#00ffff', PINK: '#ff00ff', YELLOW: '#ffff00', RED: '#ff3366', GREEN: '#00ff64', BLUE: '#0096ff', PURPLE: '#b400ff', WHITE: '#ffffff', DARK: '#1e1e28', ORANGE: '#ffaa00' };
+        var OBSTACLE_COLORS = [C.RED, C.ORANGE, C.PURPLE];
         var COLOR_PRICES = { CYAN: 0, PINK: 200, YELLOW: 200, RED: 200, GREEN: 200, BLUE: 200, PURPLE: 500, WHITE: 1000, ORANGE: 300 };
         var COLOR_KEYS = Object.keys(C).filter(k => k !== 'DARK');
 
@@ -152,7 +153,7 @@
         var activePowerups = { shield: 0, slow: 0, x2: 0, mag: 0 };
         var ammo = 0;
 
-        try { var raw = storage.get('neonDataV17'); if (raw) saved = JSON.parse(raw); } catch (e) { }
+        try { var raw = storage.get('neonDataV18'); if (raw) saved = JSON.parse(raw); } catch (e) { }
         if (!saved.ownColors) saved.ownColors = { 'sport': ['CYAN'], 'suv': ['GREEN'], 'moto': ['YELLOW'], 'future': ['PURPLE'], 'retro': ['RED'] };
         if (!saved.selColor) saved.selColor = { 'sport': 'CYAN', 'suv': 'GREEN', 'moto': 'YELLOW', 'future': 'PURPLE', 'retro': 'RED' };
 
@@ -186,17 +187,17 @@
         }
 
         window.onload = function () {
-            var V = 'v17.0';
+            var V = 'v18.0';
             if (storage.get('ver') !== V) {
                 storage.set('ver', V);
                 if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function (r) { r.forEach(function (i) { i.unregister() }) });
                 if (window.caches) caches.keys().then(function (n) { n.forEach(function (i) { caches.delete(i) }) });
-                alert("SİSTEM GÜNCELLENİYOR (v17.0)\nMotor Kalibrasyonu Yapılıyor\nZorluk Seviyesi Artırıldı...");
+                alert("SİSTEM GÜNCELLENİYOR (v18.0)\nPython Grafikleri Geri Yükleniyor...");
                 setTimeout(function () { window.location.reload(true); }, 500); return;
             }
             cvs = document.getElementById('gameCanvas'); ctx = cvs.getContext('2d');
             for (var i = 0; i < 60; i++) starField.push({ x: Math.random(), y: Math.random(), s: Math.random() * 2 });
-            for (var i = 0; i < 20; i++) buildings.push({ x: Math.random() * 1000, w: 30 + Math.random() * 50, h: 50 + Math.random() * 150, c: Math.random() });
+            for (var i = 0; i < 30; i++) buildings.push({ x: Math.random() * 1000, w: 30 + Math.random() * 50, h: 50 + Math.random() * 150, c: Math.random() }); // More buildings
             window.addEventListener('resize', resize); resize(); initInputs();
             document.getElementById('loader').style.opacity = 0; loop();
         };
@@ -248,22 +249,13 @@
         }
 
         function move(d) { var n = player.lane + d; if (n >= 0 && n <= 2 && !player.m) { player.tLane = n; player.m = true; player.p = 0; } }
-        function shoot() {
-            if (ammo > 0) {
-                bullets.push({ x: player.x, y: player.y - 30 });
-                ammo--;
-                playSound('shoot');
-            } else {
-                playSound('error');
-            }
-        }
+        function shoot() { if (ammo > 0) { bullets.push({ x: player.x, y: player.y - 30 }); ammo--; playSound('shoot'); } else playSound('error'); }
 
         function start() {
             playSound('select'); state = 'playing'; score = 0; obs = []; gold = []; pow = []; particles = []; bullets = [];
             var car = VEHICLES[saved.cur];
             player.lane = 1; player.tLane = 1; player.x = getX(1); player.m = false; player.y = h - 150;
-            baseSpeed = 6 * car.speed + saved.diff; // BASE SPEED determines acceleration
-            speed = baseSpeed;
+            baseSpeed = 6 * car.speed + saved.diff; speed = baseSpeed;
             reviveUsed = false;
             activePowerups = { shield: 0, slow: 0, x2: 0, mag: 0 };
             ammo = 0;
@@ -298,26 +290,18 @@
 
             if (state !== 'playing') return;
 
-            // Power-up durations
             if (activePowerups.shield > 0) activePowerups.shield--;
             if (activePowerups.x2 > 0) activePowerups.x2--;
             if (activePowerups.mag > 0) activePowerups.mag--;
 
-            // SPEED LOGIC FIXED
-            baseSpeed = Math.min(30, baseSpeed + 0.005); // Base always accelerates
-            if (activePowerups.slow > 0) {
-                activePowerups.slow--;
-                speed = baseSpeed * 0.5; // Half speed during slowmo
-            } else {
-                speed = baseSpeed; // Return to normal
-            }
+            baseSpeed = Math.min(30, baseSpeed + 0.005);
+            if (activePowerups.slow > 0) { activePowerups.slow--; speed = baseSpeed * 0.5; } else { speed = baseSpeed; }
 
             var scoreAdd = speed / 10; if (activePowerups.x2 > 0) scoreAdd *= 2; score += scoreAdd;
             roadOffset = (roadOffset + speed) % 40;
 
             if (player.m) { player.p += 15; var s = getX(player.lane), e = getX(player.tLane); player.x = s + (e - s) * Math.min(player.p / 100, 1); if (player.p >= 100) { player.lane = player.tLane; player.m = false; } }
 
-            // Bullets
             for (var i = bullets.length - 1; i >= 0; i--) {
                 bullets[i].y -= 25;
                 for (var j = obs.length - 1; j >= 0; j--) {
@@ -328,28 +312,22 @@
                 if (i < bullets.length && bullets[i].y < -50) bullets.splice(i, 1);
             }
 
-            // MORE OBSTACLES: Aggressive Spawning
-            var spawnRate = Math.max(25, 60 - (speed * 1.2)); // Faster spawn as speed increases
+            // EXTREMELY AGGRESSIVE SPAWNING
+            // Base timer
+            var spawnRate = Math.max(15, 50 - (speed * 1.5)); // Min 15 frames!
             timers.o++;
             if (timers.o > spawnRate) {
                 timers.o = 0;
-                obs.push({ x: getX(Math.floor(Math.random() * 3)), y: -50 });
-                // 30% Chance for double obstacle
-                if (Math.random() < 0.3) {
-                    var lane2 = Math.floor(Math.random() * 3);
-                    if (Math.abs(lane2 - obs[obs.length - 1].x) > 20) { // check if different lane (roughly)
-                        // actually lane index is unavailable here efficiently, but let's just pick another random that isn't the same
-                        // simplified:
-                    }
-                    // Better:
-                    // Actually, Obs are stored with x coordinate. I need lane index.
-                    // Let's refactor spawn to pass lane.
-                    // But to keep it simple with existing struct:
+                var lanes = [0, 1, 2];
+                var l1 = lanes[Math.floor(Math.random() * lanes.length)];
+                obs.push({ x: getX(l1), y: -50, c: OBSTACLE_COLORS[Math.floor(Math.random() * OBSTACLE_COLORS.length)] });
+
+                // 40% Chance for Double Obstacle
+                if (Math.random() < 0.4 && speed > 8) {
+                    lanes.splice(lanes.indexOf(l1), 1); // remove used lane
+                    var l2 = lanes[Math.floor(Math.random() * lanes.length)];
+                    obs.push({ x: getX(l2), y: -50, c: OBSTACLE_COLORS[Math.floor(Math.random() * OBSTACLE_COLORS.length)] });
                 }
-            }
-            // Simple double spawn patch
-            if (timers.o === 5 && Math.random() < 0.3 && speed > 10) { // slightly delayed second obstacle
-                obs.push({ x: getX(Math.floor(Math.random() * 3)), y: -50 });
             }
 
             timers.g++; if (timers.g > 60) { timers.g = 0; if (Math.random() < 0.4) gold.push({ x: getX(Math.floor(Math.random() * 3)), y: -40 }); }
@@ -388,7 +366,7 @@
 
         function check(arr, d, cb) { for (var i = arr.length - 1; i >= 0; i--) { arr[i].y += speed; if (Math.abs(arr[i].x - player.x) < d && Math.abs(arr[i].y - player.y) < d) { if (cb(arr[i], i)) arr.splice(i, 1); } else if (arr[i].y > h + 50) arr.splice(i, 1); } }
         function addExplosion(x, y, c) { if (saved.lowQ) return; for (var i = 0; i < 20; i++) particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 15, vy: (Math.random() - 0.5) * 15, life: 40, c: c }); }
-        function save() { storage.set('neonDataV17', JSON.stringify(saved)); }
+        function save() { storage.set('neonDataV18', JSON.stringify(saved)); }
         function glow(b, c) { if (saved.lowQ) { ctx.shadowBlur = 0; return; } ctx.shadowBlur = b; ctx.shadowColor = c || C.CYAN; }
 
         // --- DRAWING ---
@@ -434,7 +412,35 @@
 
         function drawGame() {
             if (!saved.lowQ) particles.forEach(function (p) { ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.life / 10 + 1, 0, 7); ctx.fill(); });
-            obs.forEach(function (o) { glow(15, C.RED); ctx.fillStyle = '#300'; ctx.strokeStyle = C.RED; ctx.lineWidth = 2; ctx.fillRect(o.x - 20, o.y - 15, 40, 30); ctx.strokeRect(o.x - 20, o.y - 15, 40, 30); });
+
+            // REVISED OBSTACLE GRAPHICS
+            obs.forEach(function (o) {
+                var col = o.c || C.RED;
+                glow(20, col);
+                ctx.fillStyle = "rgba(0,0,0,0.8)";
+                var ox = o.x - 25, oy = o.y - 20, ow = 50, oh = 40;
+                ctx.fillRect(ox, oy, ow, oh);
+
+                ctx.strokeStyle = col;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(ox, oy, ow, oh);
+
+                // Warning Stripes
+                ctx.beginPath();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = col;
+                // Draw 3-4 stripes
+                for (var i = 10; i < ow; i += 10) {
+                    ctx.moveTo(ox + i, oy);
+                    ctx.lineTo(ox + i - 10, oy + oh);
+                }
+                ctx.stroke();
+
+                // Inner Glow Rect
+                glow(10, col);
+                ctx.strokeRect(ox + 10, oy + 10, ow - 20, oh - 20);
+            });
+
             gold.forEach(function (g) { glow(15, C.YELLOW); ctx.fillStyle = C.YELLOW; ctx.beginPath(); ctx.arc(g.x, g.y, 10, 0, 7); ctx.fill(); ctx.fillText("$", g.x - 3, g.y + 3); });
 
             pow.forEach(function (p) {
@@ -466,6 +472,9 @@
             ctx.fillStyle = "#fff"; ctx.font = "20px Arial"; if (parseInt(Date.now() / 500) % 2) ctx.fillText(T.tap, cx, cy + 100);
             ctx.textAlign = "right"; ctx.fillText(T.garage + " 🚗", w - 30, 60); ctx.textAlign = "left"; ctx.fillText("⚙️ " + T.settings, 30, 60);
             ctx.textAlign = "center"; ctx.font = "14px Arial"; ctx.fillStyle = C.YELLOW; ctx.fillText("🔥 SWIPE UP TO SHOOT 🔥", cx, h - 20);
+
+            // Version Text
+            ctx.font = "12px monospace"; ctx.fillStyle = "#555"; ctx.fillText("v18.0 FINAL", cx, h - 5);
         }
 
         function drawSettings() {
