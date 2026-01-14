@@ -364,7 +364,7 @@
                     navigator.clipboard.writeText(myId); playSound('coin');
                 }
                 // START GAME
-                if (mpPlayers.length > 0 && y > h - 100) {
+                if (mpPlayers.length > 0 && y > h - 150) {
                     start(); playSound('select');
                 }
             }
@@ -399,8 +399,8 @@
                         ctx.fillStyle = "#fff"; ctx.fillText(mpPlayers[i].name + ": " + mpPlayers[i].score, cx, cy + 100 + i * 30);
                     }
                     // START BUTTON
-                    ctx.fillStyle = C.GREEN; ctx.fillRect(cx - 100, h - 100, 200, 60);
-                    ctx.fillStyle = "#fff"; ctx.font = "bold 24px Verdana"; ctx.fillText(T.mp_start, cx, h - 60);
+                    ctx.fillStyle = C.GREEN; ctx.fillRect(cx - 100, h - 150, 200, 60);
+                    ctx.fillStyle = "#fff"; ctx.font = "bold 24px Verdana"; ctx.fillText(T.mp_start, cx, h - 110);
                 } else if (myId) {
                     ctx.fillStyle = "#aaa"; ctx.font = "16px Verdana"; ctx.fillText(T.mp_wait, cx, cy + 60);
                     ctx.fillStyle = C.CYAN; ctx.font = "14px Verdana"; ctx.fillText("(Click code to copy)", cx, cy + 20);
