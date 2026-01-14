@@ -492,6 +492,7 @@
 
         function start() {
             playSound('select'); state = 'playing'; score = 0; obs = []; gold = []; pow = []; particles = []; bullets = [];
+            sendScore(0); // Reset MP score
             var car = VEHICLES[saved.cur];
             player.lane = 1; player.tLane = 1; player.x = getX(1); player.m = false; player.y = h - 150;
 
@@ -733,6 +734,19 @@
                 py += 30;
             }
 
+            // MULTIPLAYER SCOREBOARD (In-Game)
+            if ((mpState === 'host' || mpState === 'lobby') && mpPlayers.length > 0) {
+                ctx.textAlign = "right"; ctx.font = "14px Verdana";
+                var mpy = 120;
+                for (var i = 0; i < mpPlayers.length; i++) {
+                    var p = mpPlayers[i];
+                    ctx.fillStyle = (p.name === 'HOST' && isHost) || (p.name !== 'HOST' && !isHost && p.name === 'GUEST') ? C.CYAN : "#fff"; // Highlight self (implied)
+                    if (i === 0) ctx.fillStyle = C.YELLOW; // Leader is yellow
+                    ctx.fillText(p.name.substring(0, 8) + ": " + p.score, w - 20, mpy);
+                    mpy += 20;
+                }
+            }
+
             // PAUSED OVERLAY
             if (state === 'paused') {
                 ctx.fillStyle = "rgba(0,0,0,0.8)"; ctx.fillRect(0, 0, w, h);
@@ -786,7 +800,21 @@
             glow(30, C.RED); ctx.textAlign = "center"; ctx.fillStyle = C.RED; ctx.font = "bold 60px Verdana"; ctx.fillText(T.gameover, cx, cy - 40); glow(0);
             ctx.fillStyle = C.CYAN; ctx.font = "40px Verdana"; ctx.fillText(T.score + ": " + Math.floor(score), cx, cy + 40);
             ctx.fillStyle = C.YELLOW; ctx.font = "30px Verdana"; ctx.fillText(T.coin + ": " + saved.coins, cx, cy + 100);
-            if (parseInt(Date.now() / 500) % 2) ctx.fillText(T.restart, cx, cy + 200);
+            ctx.fillStyle = C.YELLOW; ctx.font = "30px Verdana"; ctx.fillText(T.coin + ": " + saved.coins, cx, cy + 100);
+
+            // MULTIPLAYER LEADERBOARD
+            if ((mpState === 'host' || mpState === 'lobby') && mpPlayers.length > 0) {
+                ctx.textAlign = "center"; ctx.fillStyle = C.GREEN; ctx.font = "bold 20px Verdana";
+                ctx.fillText(T.mp_players, cx, cy + 150);
+                var sorted = [...mpPlayers].sort((a, b) => b.score - a.score);
+                for (var i = 0; i < sorted.length && i < 3; i++) {
+                    var p = sorted[i];
+                    ctx.fillStyle = (i === 0) ? C.YELLOW : "#fff"; ctx.font = "18px Verdana";
+                    ctx.fillText((i + 1) + ". " + p.name + ": " + p.score, cx, cy + 180 + i * 25);
+                }
+            }
+
+            if (parseInt(Date.now() / 500) % 2) ctx.fillText(T.restart, cx, cy + 280);
         }
 
         function drawColorConfirm() {
