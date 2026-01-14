@@ -165,6 +165,7 @@
         var reviveUsed = false;
         var activePowerups = { shield: 0, slow: 0, x2: 0, mag: 0 };
         var ammo = 0;
+        var pendingColor = null; // For color purchase confirmation
 
         try { var raw = storage.get('neonDataV20'); if (raw) saved = JSON.parse(raw); } catch (e) { }
         // Fallbacks for new keys
@@ -595,13 +596,32 @@
         function buyColor(key) {
             if (!saved.cars.includes(Object.keys(VEHICLES)[gIdx])) return;
             var car = Object.keys(VEHICLES)[gIdx];
-            if (saved.ownColors[car].includes(key)) { saved.selColor[car] = key; playSound('select'); save(); }
-            else { var price = COLOR_PRICES[key]; if (saved.coins >= price) { saved.coins -= price; saved.ownColors[car].push(key); saved.selColor[car] = key; playSound('coin'); save(); } else { playSound('error'); } }
+            if (saved.ownColors[car].includes(key)) {
+                // Already owned - just select
+                saved.selColor[car] = key; playSound('select'); save(); pendingColor = null;
+            } else {
+                // Not owned - confirmation system
+                if (pendingColor === key) {
+                    // Second click - buy it
+                    var price = COLOR_PRICES[key];
+                    if (saved.coins >= price) {
+                        saved.coins -= price; saved.ownColors[car].push(key); saved.selColor[car] = key;
+                        playSound('coin'); save();
+                    } else {
+                        playSound('error');
+                    }
+                    pendingColor = null;
+                } else {
+                    // First click - mark as pending
+                    pendingColor = key;
+                    playSound('select');
+                }
+            }
         }
 
         function drawGarage() {
             ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h); var cx = w / 2, k = Object.keys(VEHICLES), id = k[gIdx], v = VEHICLES[id], own = saved.cars.includes(id), sel = saved.cur === id;
-            ctx.textAlign = "center"; ctx.fillStyle = C.YELLOW; ctx.font = "40px Verdana"; ctx.fillText(T.garage, cx, 60); ctx.fillText("$ " + saved.coins, cx, 100);
+            ctx.textAlign = "center"; ctx.fillStyle = C.YELLOW; ctx.font = "40px Verdana"; ctx.fillText(T.garage, cx, 60); ctx.fillText("🪙 " + saved.coins, cx, 100);
             drawPlayer(cx, h / 2 - 60, id, 2.5);
             glow(10, C.WHITE); ctx.fillStyle = "#fff"; ctx.font = "40px Verdana"; ctx.fillText(v.name, cx, h / 2 - 160); glow(0);
             ctx.fillStyle = C.CYAN; ctx.font = "20px Verdana"; ctx.fillText(T.speed + ": " + (v.speed * 10) + "/15", cx, h / 2 + 40);
@@ -615,6 +635,10 @@
                     var k = COLOR_KEYS[i]; var c = C[k]; var isOwned = saved.ownColors[id].includes(k); var isSel = saved.selColor[id] === k;
                     ctx.fillStyle = c; ctx.fillRect(startX + i * 35, yPos, 30, 30);
                     if (isSel) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.strokeRect(startX + i * 35, yPos, 30, 30); }
+                    if (pendingColor === k && !isOwned) {
+                        // Pending purchase - blinking yellow border
+                        if (parseInt(Date.now() / 300) % 2) { ctx.strokeStyle = C.YELLOW; ctx.lineWidth = 3; ctx.strokeRect(startX + i * 35, yPos, 30, 30); }
+                    }
                     if (!isOwned) { ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(startX + i * 35, yPos, 30, 30); ctx.fillStyle = "#fff"; ctx.font = "10px Verdana"; ctx.fillText(COLOR_PRICES[k], startX + i * 35 + 15, yPos + 18); }
                 }
             } else { ctx.fillStyle = "#555"; ctx.font = "14px Verdana"; ctx.fillText(T.buy_color, cx, h / 2 + 110); }
