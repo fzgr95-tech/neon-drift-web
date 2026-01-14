@@ -122,8 +122,8 @@
         var storage = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } } };
 
         var LANG = {
-            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "SKOR", coin: "ALTIN", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK", q_prefix: "Hangisi:", speak_prefix: "Aşağıdakilerden hangisi", color: "RENK", price: "Fiyat", ammo: "MERMİ", kspeed: "ÇOCUK HIZI", paused: "DURAKLATILDI", resume: "DEVAM ET", menu: "ANA MENÜ", quiz_title: "SESLİ KOMUT SİSTEMİ", buy_color: "SATIN ALARAK RENK DEĞİŞTİR", error: "Hata", line: "Satır", kids_mode: "ÇOCUK MODU AKTİF", confirm_buy: "Bu rengi almak istiyor musun?", yes: "EVET", no: "HAYIR", gold: "Altın", mp_title: "ÇOK OYUNCULU", mp_create: "ODA KUR", mp_join: "ODAYA KATIL", mp_code: "ODA KODU:", mp_enter: "KODU GİR:", mp_connect: "BAĞLAN", mp_copy: "KOPYALA", mp_wait: "Oyuncu bekleniyor...", mp_players: "OYUNCULAR" },
-            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "SCORE", coin: "GOLD", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS", q_prefix: "Which is:", speak_prefix: "Which one is", color: "COLOR", price: "Price", ammo: "AMMO", kspeed: "KIDS SPEED", paused: "PAUSED", resume: "RESUME", menu: "MAIN MENU", quiz_title: "VOICE COMMAND SYSTEM", buy_color: "BUY TO CHANGE COLOR", error: "Error", line: "Line", kids_mode: "KIDS MODE ACTIVE", confirm_buy: "Do you want to buy this color?", yes: "YES", no: "NO", gold: "Gold", mp_title: "MULTIPLAYER", mp_create: "CREATE ROOM", mp_join: "JOIN ROOM", mp_code: "ROOM CODE:", mp_enter: "ENTER CODE:", mp_connect: "CONNECT", mp_copy: "COPY", mp_wait: "Waiting for players...", mp_players: "PLAYERS" }
+            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "SKOR", coin: "ALTIN", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK", q_prefix: "Hangisi:", speak_prefix: "Aşağıdakilerden hangisi", color: "RENK", price: "Fiyat", ammo: "MERMİ", kspeed: "ÇOCUK HIZI", paused: "DURAKLATILDI", resume: "DEVAM ET", menu: "ANA MENÜ", quiz_title: "SESLİ KOMUT SİSTEMİ", buy_color: "SATIN ALARAK RENK DEĞİŞTİR", error: "Hata", line: "Satır", kids_mode: "ÇOCUK MODU AKTİF", confirm_buy: "Bu rengi almak istiyor musun?", yes: "EVET", no: "HAYIR", gold: "Altın", mp_title: "ÇOK OYUNCULU", mp_create: "ODA KUR", mp_join: "ODAYA KATIL", mp_code: "ODA KODU:", mp_enter: "KODU GİR:", mp_connect: "BAĞLAN", mp_copy: "KOPYALA", mp_wait: "Oyuncu bekleniyor...", mp_players: "OYUNCULAR", mp_start: "BAŞLA" },
+            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "SCORE", coin: "GOLD", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS", q_prefix: "Which is:", speak_prefix: "Which one is", color: "COLOR", price: "Price", ammo: "AMMO", kspeed: "KIDS SPEED", paused: "PAUSED", resume: "RESUME", menu: "MAIN MENU", quiz_title: "VOICE COMMAND SYSTEM", buy_color: "BUY TO CHANGE COLOR", error: "Error", line: "Line", kids_mode: "KIDS MODE ACTIVE", confirm_buy: "Do you want to buy this color?", yes: "YES", no: "NO", gold: "Gold", mp_title: "MULTIPLAYER", mp_create: "CREATE ROOM", mp_join: "JOIN ROOM", mp_code: "ROOM CODE:", mp_enter: "ENTER CODE:", mp_connect: "CONNECT", mp_copy: "COPY", mp_wait: "Waiting for players...", mp_players: "PLAYERS", mp_start: "START" }
         };
 
         var EMOJIS = [
@@ -363,6 +363,10 @@
                 if (mpState === 'host' && y > cy && y < cy + 50) {
                     navigator.clipboard.writeText(myId); playSound('coin');
                 }
+                // START GAME
+                if (mpPlayers.length > 0 && y > h - 100) {
+                    start(); playSound('select');
+                }
             }
         }
 
@@ -394,6 +398,9 @@
                     for (var i = 0; i < mpPlayers.length; i++) {
                         ctx.fillStyle = "#fff"; ctx.fillText(mpPlayers[i].name + ": " + mpPlayers[i].score, cx, cy + 100 + i * 30);
                     }
+                    // START BUTTON
+                    ctx.fillStyle = C.GREEN; ctx.fillRect(cx - 100, h - 100, 200, 60);
+                    ctx.fillStyle = "#fff"; ctx.font = "bold 24px Verdana"; ctx.fillText(T.mp_start, cx, h - 60);
                 } else if (myId) {
                     ctx.fillStyle = "#aaa"; ctx.font = "16px Verdana"; ctx.fillText(T.mp_wait, cx, cy + 60);
                     ctx.fillStyle = C.CYAN; ctx.font = "14px Verdana"; ctx.fillText("(Click code to copy)", cx, cy + 20);
