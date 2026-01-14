@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>NEON DRIFT FINAL v12.1</title>
+    <title>NEON DRIFT FINAL v13.0</title>
     <style>
         body {
             background-color: #050510;
@@ -53,28 +53,29 @@
             scale: 1.2;
         }
 
-        .quiz-emoji {
-            font-size: 80px;
+        .quiz-question {
+            font-size: 30px;
             margin: 20px;
-            filter: drop-shadow(0 0 10px #fff);
+            color: yellow;
+            text-shadow: 0 0 10px red;
+            font-weight: bold;
         }
 
         .quiz-btn {
             display: inline-block;
-            padding: 15px 30px;
-            margin: 10px;
+            padding: 10px;
+            margin: 15px;
             border: 2px solid cyan;
-            color: cyan;
-            font-size: 20px;
+            font-size: 60px;
             cursor: pointer;
-            border-radius: 10px;
-            min-width: 150px;
+            border-radius: 20px;
             background: rgba(0, 255, 255, 0.1);
+            min-width: 100px;
         }
 
         .quiz-btn:active {
             background: cyan;
-            color: black;
+            transform: scale(0.9);
         }
     </style>
 </head>
@@ -82,15 +83,15 @@
 <body>
 
     <div id="loader">
-        SYSTEM UPDATE v12.1<br>
-        CLEARING CACHE...<br>
-        LOADING EMOJIS...
+        SYSTEM UPDATE v13.0<br>
+        ACTIVATING VOICE SYNTHESIS...<br>
+        REVERSING QUIZ LOGIC...
     </div>
 
     <div id="quiz-overlay">
         <div class="quiz-box">
-            <h2 style="color: #ff00ff; text-shadow: 0 0 10px #ff00ff;">SORUYU BİL, KURTUL!</h2>
-            <div id="quiz-emoji" class="quiz-emoji">🐶</div>
+            <h2 style="color: #ff00ff;">SESLİ KOMUT SİSTEMİ</h2>
+            <div id="quiz-question" class="quiz-question">HANGİSİ ELMA?</div>
             <div id="quiz-answers"></div>
         </div>
     </div>
@@ -98,15 +99,15 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // === NEON DRIFT: FINAL v12.1 ===
-        // Force Update Script Added
+        // === NEON DRIFT: FINAL v13.0 ===
+        // Text Question -> Emoji Answers + Text-to-Speech (TTS)
 
         window.onerror = function (msg, url, line) { alert("Hata: " + msg + "\nSatır: " + line); return false; };
         var storage = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } } };
 
         var LANG = {
-            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "Skor", coin: "Para", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK" },
-            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "Score", coin: "Cash", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS" }
+            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "Skor", coin: "Para", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK", q_prefix: "Hangisi:", speak_prefix: "Aşağıdakilerden hangisi" },
+            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "Score", coin: "Cash", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS", q_prefix: "Which is:", speak_prefix: "Which one is" }
         };
 
         var EMOJIS = [
@@ -142,7 +143,7 @@
         var buildings = [];
         var reviveUsed = false;
 
-        try { var raw = storage.get('neonDataV12'); if (raw) saved = JSON.parse(raw); } catch (e) { }
+        try { var raw = storage.get('neonDataV13'); if (raw) saved = JSON.parse(raw); } catch (e) { }
         var T = LANG[saved.lang];
 
         // SES
@@ -164,14 +165,25 @@
         OscillatorNode.prototype.play = function (t) { this.start(audioCtx.currentTime); this.stop(audioCtx.currentTime + t); };
         GainNode.prototype.env = function (v, t) { this.gain.setValueAtTime(v, audioCtx.currentTime); this.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + t); };
 
+        // TTS (Text to Speech)
+        function speak(text) {
+            if (!window.speechSynthesis || saved.vol === 0) return;
+            window.speechSynthesis.cancel();
+            var u = new SpeechSynthesisUtterance(text);
+            u.lang = saved.lang === 'TR' ? 'tr-TR' : 'en-US';
+            u.rate = 0.9;
+            u.volume = saved.vol / 10;
+            window.speechSynthesis.speak(u);
+        }
+
         window.onload = function () {
-            // FORCE UPDATE v12.1
-            var V = 'v12.1';
+            // FORCE UPDATE v13.0
+            var V = 'v13.0';
             if (storage.get('ver') !== V) {
                 storage.set('ver', V);
                 if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function (r) { r.forEach(function (i) { i.unregister() }) });
                 if (window.caches) caches.keys().then(function (n) { n.forEach(function (i) { caches.delete(i) }) });
-                alert("GÜNCELLEME TESPİT EDİLDİ!\nEmojiler yükleniyor (v12.1)...");
+                alert("SİSTEM GÜNCELLENİYOR (v13.0)\nSesli Emoji Testi Yükleniyor...");
                 setTimeout(function () { window.location.reload(true); }, 500);
                 return;
             }
@@ -241,22 +253,28 @@
             var wrong = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
             while (wrong.e === correct.e) wrong = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
 
-            document.getElementById('quiz-emoji').innerText = correct.e;
-
             var langKey = saved.lang === 'TR' ? 'tr' : 'en';
             var correctText = correct[langKey];
-            var wrongText = wrong[langKey];
 
+            // TEXT QUESTION
+            document.getElementById('quiz-question').innerText = T.q_prefix + "\n" + correctText.toUpperCase();
+
+            // EMOJI BUTTONS
             var d = document.getElementById('quiz-answers'); d.innerHTML = "";
-            var btn1 = `<div class="quiz-btn" onclick="quizAns('${correct.e}', '${correct.e}')">${correctText}</div>`;
-            var btn2 = `<div class="quiz-btn" onclick="quizAns('WRONG', '${correct.e}')">${wrongText}</div>`;
+            var btn1 = `<div class="quiz-btn" onclick="quizAns('${correct.e}', '${correct.e}')">${correct.e}</div>`;
+            var btn2 = `<div class="quiz-btn" onclick="quizAns('WRONG', '${correct.e}')">${wrong.e}</div>`;
 
             d.innerHTML = Math.random() > 0.5 ? btn1 + btn2 : btn2 + btn1;
             document.getElementById('quiz-overlay').style.display = 'flex';
+
+            // SPEAK
+            var speakText = T.speak_prefix + " " + correctText + "?";
+            speak(speakText);
         }
 
         window.quizAns = function (val, correct) {
             document.getElementById('quiz-overlay').style.display = 'none';
+            window.speechSynthesis.cancel();
             if (val === correct) {
                 state = 'playing'; player.shield = 200; reviveUsed = true;
                 obs = []; playSound('powerup');
@@ -305,7 +323,7 @@
 
         function check(arr, d, cb) { for (var i = arr.length - 1; i >= 0; i--) { arr[i].y += speed; if (Math.abs(arr[i].x - player.x) < d && Math.abs(arr[i].y - player.y) < d) { if (cb(arr[i], i)) arr.splice(i, 1); } else if (arr[i].y > h + 50) arr.splice(i, 1); } }
         function addExplosion(x, y, c) { if (saved.lowQ) return; for (var i = 0; i < 20; i++) particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 15, vy: (Math.random() - 0.5) * 15, life: 40, c: c }); }
-        function save() { storage.set('neonDataV12', JSON.stringify(saved)); }
+        function save() { storage.set('neonDataV13', JSON.stringify(saved)); }
         function glow(b, c) { if (saved.lowQ) { ctx.shadowBlur = 0; return; } ctx.shadowBlur = b; ctx.shadowColor = c || C.CYAN; }
 
         // --- DRAWING ---
