@@ -156,6 +156,7 @@
         };
 
         var cvs, ctx, w, h;
+        var state = 'menu'; // Game state: menu, playing, paused, gameover, settings, garage, quiz, multiplayer, colorConfirm
         var saved = JSON.parse(storage.get('neon-drift-save')) || { high: 0, coins: 0, cars: ['sport'], cur: 'sport', settings: {}, vol: 5, diff: 1, lang: 'TR', kSpeed: 5, lowQ: false, ownColors: { sport: ['C1'] }, selColor: { sport: 'C1' }, mpName: null };
         var score = 0, baseSpeed = 0, speed = 0, roadOffset = 0, particles = [], bullets = [];
         var buildings = [];
