@@ -679,6 +679,21 @@
             reviveUsed = false; activePowerups = { shield: 0, slow: 0, x2: 0, mag: 0 }; ammo = 0;
         }
 
+        function startQuiz() {
+            state = 'quiz';
+            var correct = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+            var wrong = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+            while (wrong.e === correct.e) wrong = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+            var langKey = saved.lang === 'TR' ? 'tr' : 'en';
+            document.getElementById('quiz-question').innerText = T.q_prefix + "\n" + correct[langKey].toUpperCase();
+            var d = document.getElementById('quiz-answers'); d.innerHTML = "";
+            var btn1 = `<div class="quiz-btn" onclick="quizAns('${correct.e}', '${correct.e}')">${correct.e}</div>`;
+            var btn2 = `<div class="quiz-btn" onclick="quizAns('WRONG', '${correct.e}')">${wrong.e}</div>`;
+            d.innerHTML = Math.random() > 0.5 ? btn1 + btn2 : btn2 + btn1;
+            document.getElementById('quiz-overlay').style.display = 'flex';
+            speak(T.speak_prefix + " " + correct[langKey] + "?");
+        }
+
         window.quizAns = function (val, correct) {
             document.getElementById('quiz-overlay').style.display = 'none'; window.speechSynthesis.cancel();
             if (val === correct) { state = 'playing'; activePowerups.shield = 200; reviveUsed = true; obs = []; playSound('powerup'); } else { die(); }
