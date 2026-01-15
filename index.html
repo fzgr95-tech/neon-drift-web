@@ -167,7 +167,7 @@
 
         // Multiplayer Variables
         var peer = null;
-        var conn = null;
+        var conns = []; // Array of connections for multi-player
         var myId = null;
         var hostId = null;
         var isHost = false;
@@ -466,9 +466,9 @@
                 mpStatus = 'Oda hazır! Kod: ' + myId;
             });
             peer.on('connection', function (c) {
-                conn = c;
+                conns.push(c); // Add to connections array
                 mpStatus = 'Oyuncu bağlanıyor...';
-                setupConnection();
+                setupConnectionForHost(c); // Pass the connection
             });
             peer.on('error', function (err) {
                 mpStatus = 'HATA: ' + err.type;
@@ -486,22 +486,22 @@
             peer.on('open', function (id) {
                 console.log('Guest peer ID: ' + id);
                 mpStatus = 'Odaya bağlanılıyor: ' + code;
-                conn = peer.connect('nbroom-' + code);
+                guestConn = peer.connect('nbroom-' + code);
 
-                if (!conn) {
+                if (!guestConn) {
                     mpStatus = 'HATA: Bağlantı oluşturulamadı';
                     alert('Bağlantı oluşturulamadı!');
                     return;
                 }
 
-                conn.on('open', function () {
+                guestConn.on('open', function () {
                     mpStatus = 'Bağlandı!';
                     mpState = 'lobby';
-                    conn.send({ type: 'join', name: saved.mpName || 'GUEST' });
+                    guestConn.send({ type: 'join', name: saved.mpName || 'GUEST' });
                 });
 
                 // DATA HANDLER - Guest receives updates from Host
-                conn.on('data', function (data) {
+                guestConn.on('data', function (data) {
                     if (data.type === 'start') {
                         start(); playSound('select');
                     }
@@ -510,7 +510,7 @@
                     }
                 });
 
-                conn.on('error', function (err) {
+                guestConn.on('error', function (err) {
                     mpStatus = 'Bağlantı hatası: ' + err;
                     alert('Bağlantı hatası: ' + err);
                 });
@@ -531,46 +531,46 @@
             });
         }
 
-        function setupConnection() {
-            conn.on('open', function () {
+        // Host connection handler - called for each new guest
+        function setupConnectionForHost(c) {
+            c.on('open', function () {
                 mpStatus = 'Bağlandı!';
                 mpState = 'lobby';
-                if (!isHost) {
-                    conn.send({ type: 'join', name: saved.mpName || 'GUEST' });
-                }
             });
-            conn.on('data', function (data) {
-                if (data.type === 'start') {
-                    start(); playSound('select');
+            c.on('data', function (data) {
+                if (data.type === 'join') {
+                    mpStatus = data.name + ' katıldı!';
+                    mpPlayers.push({ name: data.name, score: 0 });
+                    broadcast({ type: 'update', players: mpPlayers });
                 }
-                else if (data.type === 'join') {
-                    if (isHost) {
-                        mpStatus = data.name + ' katıldı!';
-                        mpPlayers.push({ name: data.name, score: 0 });
-                        broadcast({ type: 'update', players: mpPlayers });
-                    }
-                }
-                else if (data.type === 'update') mpPlayers = data.players;
                 else if (data.type === 'score') {
-                    if (isHost) {
-                        var p = mpPlayers.find(p => p.name === data.name);
-                        if (p) p.score = Math.max(p.score, data.score);
-                        broadcast({ type: 'update', players: mpPlayers });
-                    }
+                    var p = mpPlayers.find(p => p.name === data.name);
+                    if (p) p.score = Math.max(p.score, data.score);
+                    broadcast({ type: 'update', players: mpPlayers });
                 }
             });
-            conn.on('error', function (err) {
+            c.on('error', function (err) {
                 mpStatus = 'Bağlantı hatası: ' + err;
-                alert('Bağlantı hatası: ' + err);
             });
         }
 
-        function broadcast(msg) { if (conn) conn.send(msg); }
+        // Broadcast to ALL connected guests
+        function broadcast(msg) {
+            conns.forEach(function (c) {
+                if (c && c.open) c.send(msg);
+            });
+        }
+
+        // Guest's connection variable (single)
+        var guestConn = null;
+
         function sendScore(s) {
-            if (conn) conn.send({ type: 'score', score: Math.floor(s), name: saved.mpName });
+            // Guest sends to host
+            if (guestConn) guestConn.send({ type: 'score', score: Math.floor(s), name: saved.mpName });
+            // Host updates local and broadcasts
             if (isHost) {
                 mpPlayers[0].score = Math.max(mpPlayers[0].score, Math.floor(s));
-                broadcast({ type: 'update', players: mpPlayers }); // Broadcast to guests
+                broadcast({ type: 'update', players: mpPlayers });
             }
         }
 

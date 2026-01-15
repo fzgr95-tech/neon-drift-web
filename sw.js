@@ -1,5 +1,5 @@
 // Service Worker for Neon Blitz PWA
-const CACHE_NAME = 'neon-blitz-v25.7';
+const CACHE_NAME = 'neon-blitz-v26.0';
 const urlsToCache = [
     './',
     './index.html',
