@@ -250,12 +250,46 @@
 
         function initInputs() {
             var tsX = 0, tsY = 0;
-            cvs.addEventListener('touchstart', function (e) { e.preventDefault(); tsX = e.touches[0].clientX; tsY = e.touches[0].clientY; handleTap(tsX, tsY); }, { passive: false });
-            cvs.addEventListener('touchend', function (e) {
-                e.preventDefault(); var dx = e.changedTouches[0].clientX - tsX; var dy = e.changedTouches[0].clientY - tsY;
-                if (state === 'playing') { if (dy < -50) shoot(); else if (Math.abs(dx) > 30) move(dx > 0 ? 1 : -1); }
+            var swipedY = false;
+
+            cvs.addEventListener('touchstart', function (e) {
+                e.preventDefault();
+                tsX = e.touches[0].clientX;
+                tsY = e.touches[0].clientY;
+                swipedY = false;
+                handleTap(tsX, tsY);
             }, { passive: false });
+
+            cvs.addEventListener('touchmove', function (e) {
+                e.preventDefault();
+                if (state !== 'playing') return;
+
+                var currX = e.touches[0].clientX;
+                var currY = e.touches[0].clientY;
+                var dx = currX - tsX;
+                var dy = currY - tsY;
+
+                // Horizontal Move (Instant reaction)
+                if (Math.abs(dx) > 30) {
+                    move(dx > 0 ? 1 : -1);
+                    tsX = currX; // Reset reference for continuous swiping
+                    tsY = currY; // Reset Y to prevent accidental diagonal interaction
+                }
+
+                // Vertical Move (Shoot) - Lock until release to prevent spam
+                if (dy < -50 && !swipedY) {
+                    shoot();
+                    swipedY = true;
+                }
+            }, { passive: false });
+
+            cvs.addEventListener('touchend', function (e) {
+                e.preventDefault();
+                // Touchend logic removed as it's now handled in touchmove
+            }, { passive: false });
+
             cvs.addEventListener('mousedown', function (e) { handleTap(e.clientX, e.clientY); });
+
             document.addEventListener('keydown', function (e) {
                 if (state === 'playing') {
                     if (e.key === 'ArrowLeft') move(-1);
