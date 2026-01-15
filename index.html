@@ -510,7 +510,7 @@
             myId = Math.floor(1000 + Math.random() * 9000).toString();
             peer = new Peer('nbroom-' + myId, peerConfig);
             isHost = true;
-            mpPlayers = [{ name: saved.mpName || 'HOST', score: 0 }];
+            mpPlayers = [{ name: saved.mpName || 'HOST', score: 0, alive: true }];
 
             peer.on('open', function (id) {
                 console.log('Host peer ID: ' + id);
@@ -603,12 +603,17 @@
                         return;
                     }
                     mpStatus = data.name + ' katıldı!';
-                    mpPlayers.push({ name: data.name, score: 0 });
+                    mpPlayers.push({ name: data.name, score: 0, alive: true });
                     broadcast({ type: 'update', players: mpPlayers });
                 }
                 else if (data.type === 'score') {
                     var p = mpPlayers.find(p => p.name === data.name);
                     if (p) p.score = Math.max(p.score, data.score);
+                    broadcast({ type: 'update', players: mpPlayers });
+                }
+                else if (data.type === 'dead') {
+                    var p = mpPlayers.find(p => p.name === data.name);
+                    if (p) p.alive = false;
                     broadcast({ type: 'update', players: mpPlayers });
                 }
             });
@@ -642,12 +647,25 @@
             }
         }
 
+        function sendDead() {
+            if (guestConn) guestConn.send({ type: 'dead', name: saved.mpName });
+            if (isHost) {
+                mpPlayers[0].alive = false;
+                broadcast({ type: 'update', players: mpPlayers });
+            }
+        }
+
         function move(d) { var n = player.lane + d; if (n >= 0 && n <= 2 && !player.m) { player.tLane = n; player.m = true; player.p = 0; } }
         function shoot() { if (ammo > 0) { bullets.push({ x: player.x, y: player.y - 30 }); ammo--; playSound('shoot'); } else playSound('error'); }
 
         function start() {
             playSound('select'); state = 'playing'; score = 0; obs = []; gold = []; pow = []; particles = []; bullets = [];
             sendScore(0); // Reset MP score
+            // Reset alive status for all players (Host only)
+            if (isHost && mpPlayers.length > 0) {
+                mpPlayers.forEach(p => p.alive = true);
+                broadcast({ type: 'update', players: mpPlayers });
+            }
             var car = VEHICLES[saved.cur];
             player.lane = 1; player.tLane = 1; player.x = getX(1); player.m = false; player.y = h - 150;
 
@@ -661,26 +679,18 @@
             reviveUsed = false; activePowerups = { shield: 0, slow: 0, x2: 0, mag: 0 }; ammo = 0;
         }
 
-        function startQuiz() {
-            state = 'quiz';
-            var correct = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-            var wrong = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-            while (wrong.e === correct.e) wrong = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-            var langKey = saved.lang === 'TR' ? 'tr' : 'en';
-            document.getElementById('quiz-question').innerText = T.q_prefix + "\n" + correct[langKey].toUpperCase();
-            var d = document.getElementById('quiz-answers'); d.innerHTML = "";
-            var btn1 = `<div class="quiz-btn" onclick="quizAns('${correct.e}', '${correct.e}')">${correct.e}</div>`;
-            var btn2 = `<div class="quiz-btn" onclick="quizAns('WRONG', '${correct.e}')">${wrong.e}</div>`;
-            d.innerHTML = Math.random() > 0.5 ? btn1 + btn2 : btn2 + btn1;
-            document.getElementById('quiz-overlay').style.display = 'flex';
-            speak(T.speak_prefix + " " + correct[langKey] + "?");
-        }
-
         window.quizAns = function (val, correct) {
             document.getElementById('quiz-overlay').style.display = 'none'; window.speechSynthesis.cancel();
             if (val === correct) { state = 'playing'; activePowerups.shield = 200; reviveUsed = true; obs = []; playSound('powerup'); } else { die(); }
         };
-        function die() { state = 'gameover'; if (score > saved.high) saved.high = Math.floor(score); saved.coins += Math.floor(score / 10); save(); sendScore(score); }
+        function die() {
+            state = 'gameover';
+            if (score > saved.high) saved.high = Math.floor(score);
+            saved.coins += Math.floor(score / 10);
+            save();
+            sendScore(score);
+            sendDead();
+        }
         function loop() { update(); draw(); requestAnimationFrame(loop); }
 
         function update() {
@@ -895,9 +905,10 @@
                 var mpy = 120;
                 for (var i = 0; i < mpPlayers.length; i++) {
                     var p = mpPlayers[i];
-                    ctx.fillStyle = (p.name === 'HOST' && isHost) || (p.name !== 'HOST' && !isHost && p.name === 'GUEST') ? C.CYAN : "#fff"; // Highlight self (implied)
-                    if (i === 0) ctx.fillStyle = C.YELLOW; // Leader is yellow
-                    ctx.fillText(p.name.substring(0, 8) + ": " + p.score, w - 20, mpy);
+                    ctx.fillStyle = (p.name === 'HOST' && isHost) || (p.name !== 'HOST' && !isHost && p.name === 'GUEST') ? C.CYAN : "#fff";
+                    if (i === 0) ctx.fillStyle = C.YELLOW;
+                    var status = p.alive ? "🟢 " : "💀 ";
+                    ctx.fillText(status + p.name.substring(0, 8) + ": " + p.score, w - 20, mpy);
                     mpy += 20;
                 }
             }
@@ -964,7 +975,8 @@
                 for (var i = 0; i < sorted.length && i < 3; i++) {
                     var p = sorted[i];
                     ctx.fillStyle = (i === 0) ? C.YELLOW : "#fff"; ctx.font = "18px Verdana";
-                    ctx.fillText((i + 1) + ". " + p.name + ": " + p.score, cx, cy + 180 + i * 25);
+                    var status = p.alive ? "🟢 " : "💀 ";
+                    ctx.fillText((i + 1) + ". " + status + p.name + ": " + p.score, cx, cy + 180 + i * 25);
                 }
             }
 
