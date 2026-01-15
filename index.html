@@ -122,8 +122,8 @@
         var storage = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } } };
 
         var LANG = {
-            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "SKOR", coin: "ALTIN", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK", q_prefix: "Hangisi:", speak_prefix: "Aşağıdakilerden hangisi", color: "RENK", price: "Fiyat", ammo: "MERMİ", kspeed: "ÇOCUK HIZI", paused: "DURAKLATILDI", resume: "DEVAM ET", menu: "ANA MENÜ", quiz_title: "SESLİ KOMUT SİSTEMİ", buy_color: "SATIN ALARAK RENK DEĞİŞTİR", error: "Hata", line: "Satır", kids_mode: "ÇOCUK MODU AKTİF", confirm_buy: "Bu rengi almak istiyor musun?", yes: "EVET", no: "HAYIR", gold: "Altın", mp_title: "ÇOK OYUNCULU", mp_create: "ODA KUR", mp_join: "ODAYA KATIL", mp_code: "ODA KODU:", mp_enter: "KODU GİR:", mp_connect: "BAĞLAN", mp_copy: "KOPYALA", mp_wait: "Oyuncu bekleniyor...", mp_players: "OYUNCULAR", mp_start: "BAŞLA" },
-            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "SCORE", coin: "GOLD", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS", q_prefix: "Which is:", speak_prefix: "Which one is", color: "COLOR", price: "Price", ammo: "AMMO", kspeed: "KIDS SPEED", paused: "PAUSED", resume: "RESUME", menu: "MAIN MENU", quiz_title: "VOICE COMMAND SYSTEM", buy_color: "BUY TO CHANGE COLOR", error: "Error", line: "Line", kids_mode: "KIDS MODE ACTIVE", confirm_buy: "Do you want to buy this color?", yes: "YES", no: "NO", gold: "Gold", mp_title: "MULTIPLAYER", mp_create: "CREATE ROOM", mp_join: "JOIN ROOM", mp_code: "ROOM CODE:", mp_enter: "ENTER CODE:", mp_connect: "CONNECT", mp_copy: "COPY", mp_wait: "Waiting for players...", mp_players: "PLAYERS", mp_start: "START" }
+            TR: { tap: "BAŞLAMAK İÇİN DOKUN", garage: "GARAJ", settings: "AYARLAR", back: "GERİ", buy: "SATIN AL", equip: "SEÇ", equipped: "SEÇİLDİ", speed: "HIZ", gameover: "OYUN BİTTİ", score: "SKOR", coin: "ALTIN", restart: "TEKRAR OYNA", vol: "SES", diff: "ZORLUK", graph: "GRAFİK", q_prefix: "Hangisi:", speak_prefix: "Aşağıdakilerden hangisi", color: "RENK", price: "Fiyat", ammo: "MERMİ", kspeed: "ÇOCUK HIZI", paused: "DURAKLATILDI", resume: "DEVAM ET", menu: "ANA MENÜ", quiz_title: "SESLİ KOMUT SİSTEMİ", buy_color: "SATIN ALARAK RENK DEĞİŞTİR", error: "Hata", line: "Satır", kids_mode: "ÇOCUK MODU AKTİF", confirm_buy: "Bu rengi almak istiyor musun?", yes: "EVET", no: "HAYIR", gold: "Altın", mp_title: "ÇOK OYUNCULU", mp_create: "ODA KUR", mp_join: "ODAYA KATIL", mp_code: "ODA KODU:", mp_enter: "KODU GİR:", mp_connect: "BAĞLAN", mp_copy: "KOPYALA", mp_wait: "Oyuncu bekleniyor...", mp_players: "OYUNCULAR", mp_start: "BAŞLA", mp_limit: "MAX OYUNCU:", mp_change_name: "İSİM DEĞİŞTİR", mp_full: "Oda dolu!" },
+            EN: { tap: "TAP TO START", garage: "GARAGE", settings: "SETTINGS", back: "BACK", buy: "BUY", equip: "EQUIP", equipped: "EQUIPPED", speed: "SPEED", gameover: "GAME OVER", score: "SCORE", coin: "GOLD", restart: "TAP TO RESTART", vol: "VOLUME", diff: "DIFFICULTY", graph: "GRAPHICS", q_prefix: "Which is:", speak_prefix: "Which one is", color: "COLOR", price: "Price", ammo: "AMMO", kspeed: "KIDS SPEED", paused: "PAUSED", resume: "RESUME", menu: "MAIN MENU", quiz_title: "VOICE COMMAND SYSTEM", buy_color: "BUY TO CHANGE COLOR", error: "Error", line: "Line", kids_mode: "KIDS MODE ACTIVE", confirm_buy: "Do you want to buy this color?", yes: "YES", no: "NO", gold: "Gold", mp_title: "MULTIPLAYER", mp_create: "CREATE ROOM", mp_join: "JOIN ROOM", mp_code: "ROOM CODE:", mp_enter: "ENTER CODE:", mp_connect: "CONNECT", mp_copy: "COPY", mp_wait: "Waiting for players...", mp_players: "PLAYERS", mp_start: "START", mp_limit: "MAX PLAYERS:", mp_change_name: "CHANGE NAME", mp_full: "Room is full!" }
         };
 
         var EMOJIS = [
@@ -174,6 +174,7 @@
         var mpPlayers = []; // { id, name, score }
         var mpState = 'none'; // none, menu, host, join, lobby
         var mpStatus = ''; // Connection status message
+        var mpMaxPlayers = 4; // Host-defined max players (2-15)
 
         try { var raw = storage.get('neonDataV20'); if (raw) saved = JSON.parse(raw); } catch (e) { }
         // Fallbacks for new keys
@@ -365,10 +366,26 @@
                 if (mpState === 'host' && y > cy && y < cy + 50) {
                     navigator.clipboard.writeText(myId); playSound('coin');
                 }
+                // MAX PLAYERS +/- (Host Only, before anyone joins)
+                if (isHost && mpPlayers.length <= 1 && y > cy + 40 && y < cy + 70) {
+                    if (x > cx - 80 && x < cx - 40) { mpMaxPlayers = Math.max(2, mpMaxPlayers - 1); playSound('select'); } // -
+                    if (x > cx + 40 && x < cx + 80) { mpMaxPlayers = Math.min(15, mpMaxPlayers + 1); playSound('select'); } // +
+                }
                 // START GAME (Host Only)
-                if (isHost && mpPlayers.length > 0 && y > h - 150) {
+                if (isHost && mpPlayers.length > 0 && y > h - 150 && y < h - 90) {
                     broadcast({ type: 'start' });
                     start(); playSound('select');
+                }
+                // CHANGE NAME (Everyone)
+                if (y > h - 60 && y < h - 20) {
+                    var newName = prompt("Yeni İsim / New Name:", saved.mpName || "Player");
+                    if (newName && newName.trim()) {
+                        saved.mpName = newName.trim();
+                        save();
+                        // Update local mpPlayers
+                        if (isHost) mpPlayers[0].name = saved.mpName;
+                        playSound('select');
+                    }
                 }
             }
         }
@@ -390,6 +407,17 @@
                 if (myId) {
                     ctx.fillStyle = C.WHITE; ctx.font = "20px Verdana"; ctx.fillText(T.mp_code, cx, cy - 80);
                     ctx.fillStyle = C.YELLOW; ctx.font = "bold 60px Verdana"; ctx.fillText(myId, cx, cy - 20);
+
+                    // MAX PLAYERS CONTROL (Host Only)
+                    if (isHost && mpPlayers.length <= 1) {
+                        ctx.fillStyle = C.WHITE; ctx.font = "16px Verdana"; ctx.fillText(T.mp_limit + " " + mpMaxPlayers, cx, cy + 30);
+                        // - Button
+                        ctx.fillStyle = C.RED; ctx.fillRect(cx - 80, cy + 40, 40, 30);
+                        ctx.fillStyle = "#fff"; ctx.font = "bold 20px Verdana"; ctx.fillText("-", cx - 60, cy + 62);
+                        // + Button
+                        ctx.fillStyle = C.GREEN; ctx.fillRect(cx + 40, cy + 40, 40, 30);
+                        ctx.fillText("+", cx + 60, cy + 62);
+                    }
                 } else {
                     ctx.fillStyle = C.WHITE; ctx.fillText("Creating Room...", cx, cy);
                 }
@@ -397,9 +425,9 @@
                 // Player List
                 if (mpPlayers.length > 0) {
                     mpState = 'lobby';
-                    ctx.fillStyle = C.GREEN; ctx.font = "20px Verdana"; ctx.fillText(T.mp_players, cx, cy + 60);
+                    ctx.fillStyle = C.GREEN; ctx.font = "20px Verdana"; ctx.fillText(T.mp_players + " (" + mpPlayers.length + "/" + mpMaxPlayers + ")", cx, cy + 90);
                     for (var i = 0; i < mpPlayers.length; i++) {
-                        ctx.fillStyle = "#fff"; ctx.fillText(mpPlayers[i].name + ": " + mpPlayers[i].score, cx, cy + 100 + i * 30);
+                        ctx.fillStyle = "#fff"; ctx.fillText(mpPlayers[i].name + ": " + mpPlayers[i].score, cx, cy + 130 + i * 25);
                     }
                     // START BUTTON (Host Only)
                     if (isHost) {
@@ -409,9 +437,13 @@
                         ctx.fillStyle = "#aaa"; ctx.font = "16px Verdana"; ctx.fillText("Waiting for Host to start...", cx, h - 120);
                     }
                 } else if (myId) {
-                    ctx.fillStyle = "#aaa"; ctx.font = "16px Verdana"; ctx.fillText(T.mp_wait, cx, cy + 60);
+                    ctx.fillStyle = "#aaa"; ctx.font = "16px Verdana"; ctx.fillText(T.mp_wait, cx, cy + 90);
                     ctx.fillStyle = C.CYAN; ctx.font = "14px Verdana"; ctx.fillText("(Click code to copy)", cx, cy + 20);
                 }
+
+                // CHANGE NAME BUTTON (Everyone)
+                ctx.fillStyle = C.PURPLE; ctx.fillRect(cx - 80, h - 60, 160, 40);
+                ctx.fillStyle = "#fff"; ctx.font = "16px Verdana"; ctx.fillText(T.mp_change_name, cx, h - 33);
             }
             else if (mpState === 'join') {
                 ctx.textAlign = "center";
@@ -508,6 +540,11 @@
                     else if (data.type === 'update') {
                         mpPlayers = data.players;
                     }
+                    else if (data.type === 'full') {
+                        mpStatus = T.mp_full;
+                        alert(T.mp_full);
+                        mpState = 'menu';
+                    }
                 });
 
                 guestConn.on('error', function (err) {
@@ -539,6 +576,12 @@
             });
             c.on('data', function (data) {
                 if (data.type === 'join') {
+                    // Check player limit
+                    if (mpPlayers.length >= mpMaxPlayers) {
+                        c.send({ type: 'full' }); // Room is full
+                        mpStatus = 'Oda dolu! ' + data.name + ' reddedildi.';
+                        return;
+                    }
                     mpStatus = data.name + ' katıldı!';
                     mpPlayers.push({ name: data.name, score: 0 });
                     broadcast({ type: 'update', players: mpPlayers });
