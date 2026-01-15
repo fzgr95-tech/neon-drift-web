@@ -567,10 +567,10 @@
 
         function broadcast(msg) { if (conn) conn.send(msg); }
         function sendScore(s) {
-            if (conn) conn.send({ type: 'score', score: Math.floor(s), name: saved.mpName }); // Send name too
+            if (conn) conn.send({ type: 'score', score: Math.floor(s), name: saved.mpName });
             if (isHost) {
                 mpPlayers[0].score = Math.max(mpPlayers[0].score, Math.floor(s));
-                // Local broadcast simulation for host UI not needed since mpPlayers is shared
+                broadcast({ type: 'update', players: mpPlayers }); // Broadcast to guests
             }
         }
 
@@ -886,7 +886,6 @@
             ctx.fillStyle = "rgba(0,0,0,0.9)"; ctx.fillRect(0, 0, w, h); var cx = w / 2, cy = h / 2;
             glow(30, C.RED); ctx.textAlign = "center"; ctx.fillStyle = C.RED; ctx.font = "bold 60px Verdana"; ctx.fillText(T.gameover, cx, cy - 40); glow(0);
             ctx.fillStyle = C.CYAN; ctx.font = "40px Verdana"; ctx.fillText(T.score + ": " + Math.floor(score), cx, cy + 40);
-            ctx.fillStyle = C.YELLOW; ctx.font = "30px Verdana"; ctx.fillText(T.coin + ": " + saved.coins, cx, cy + 100);
             ctx.fillStyle = C.YELLOW; ctx.font = "30px Verdana"; ctx.fillText(T.coin + ": " + saved.coins, cx, cy + 100);
 
             // MULTIPLAYER LEADERBOARD
