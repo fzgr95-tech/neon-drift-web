@@ -376,7 +376,7 @@
                 }
                 // START GAME (Host Only)
                 if (isHost && mpPlayers.length > 0 && y > h - 150 && y < h - 90) {
-                    broadcast({ type: 'start' });
+                    broadcast({ type: 'start', settings: { diff: saved.diff, kSpeed: saved.kSpeed } });
                     start(); playSound('select');
                 }
                 // CHANGE NAME (Everyone)
@@ -555,6 +555,11 @@
                 // DATA HANDLER - Guest receives updates from Host
                 guestConn.on('data', function (data) {
                     if (data.type === 'start') {
+                        // Apply Host Settings
+                        if (data.settings) {
+                            saved.diff = data.settings.diff;
+                            saved.kSpeed = data.settings.kSpeed;
+                        }
                         start(); playSound('select');
                     }
                     else if (data.type === 'update') {
