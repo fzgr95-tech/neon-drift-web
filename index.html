@@ -173,6 +173,7 @@
         var isHost = false;
         var mpPlayers = []; // { id, name, score }
         var mpState = 'none'; // none, menu, host, join, lobby
+        var mpStatus = ''; // Connection status message
 
         try { var raw = storage.get('neonDataV20'); if (raw) saved = JSON.parse(raw); } catch (e) { }
         // Fallbacks for new keys
@@ -432,39 +433,90 @@
                     ctx.fillStyle = "#fff"; ctx.font = "20px Verdana"; ctx.fillText(keys[i], kx + 25, ky + 32);
                 }
             }
+
+            // Connection Status Message
+            if (mpStatus) {
+                ctx.textAlign = "center"; ctx.fillStyle = C.YELLOW; ctx.font = "14px Verdana";
+                ctx.fillText(mpStatus, cx, h - 30);
+            }
         }
 
         // --- PeerJS Logic ---
         function initHost() {
             if (peer) return;
+            mpStatus = 'Oda kuruluyor...';
             myId = Math.floor(1000 + Math.random() * 9000).toString();
             peer = new Peer('nbroom-' + myId);
             isHost = true;
             mpPlayers = [{ name: saved.mpName || 'HOST', score: 0 }];
 
-            peer.on('open', function (id) { console.log('My peer ID is: ' + id); });
+            peer.on('open', function (id) {
+                console.log('Host peer ID: ' + id);
+                mpStatus = 'Oda hazır! Kod: ' + myId;
+            });
             peer.on('connection', function (c) {
                 conn = c;
+                mpStatus = 'Oyuncu bağlanıyor...';
                 setupConnection();
             });
-            peer.on('error', function (err) { alert("Bağlantı Hatası / Connection Error: " + err); mpState = 'menu'; });
+            peer.on('error', function (err) {
+                mpStatus = 'HATA: ' + err.type;
+                alert("Bağlantı Hatası / Connection Error: " + err.type);
+                mpState = 'menu';
+            });
         }
 
         function joinRoom(code) {
             if (peer) return;
+            mpStatus = 'Bağlanılıyor...';
             peer = new Peer();
             isHost = false;
+
             peer.on('open', function (id) {
+                console.log('Guest peer ID: ' + id);
+                mpStatus = 'Odaya bağlanılıyor: ' + code;
                 conn = peer.connect('nbroom-' + code);
-                setupConnection();
+
+                if (!conn) {
+                    mpStatus = 'HATA: Bağlantı oluşturulamadı';
+                    alert('Bağlantı oluşturulamadı!');
+                    return;
+                }
+
+                conn.on('open', function () {
+                    mpStatus = 'Bağlandı!';
+                    mpState = 'lobby';
+                    conn.send({ type: 'join', name: saved.mpName || 'GUEST' });
+                });
+
+                conn.on('error', function (err) {
+                    mpStatus = 'Bağlantı hatası: ' + err;
+                    alert('Bağlantı hatası: ' + err);
+                });
+
+                // Timeout - 10 saniye içinde bağlanmazsa hata ver
+                setTimeout(function () {
+                    if (mpState !== 'lobby') {
+                        mpStatus = 'Zaman aşımı! Oda bulunamadı.';
+                        alert('Oda bulunamadı veya bağlantı zaman aşımına uğradı.');
+                    }
+                }, 10000);
             });
-            peer.on('error', function (err) { alert("Hata / Error: " + err); mpState = 'menu'; });
+
+            peer.on('error', function (err) {
+                mpStatus = 'HATA: ' + err.type;
+                alert("Hata / Error: " + err.type);
+                mpState = 'menu';
+            });
         }
 
         function setupConnection() {
             conn.on('open', function () {
+                mpStatus = 'Bağlandı!';
                 mpState = 'lobby';
-                conn.send({ type: 'join', name: saved.mpName || 'GUEST' });
+                if (!isHost) {
+                    conn.send({ type: 'join', name: saved.mpName || 'GUEST' });
+                }
             });
             conn.on('data', function (data) {
                 if (data.type === 'start') {
@@ -472,6 +524,7 @@
                 }
                 else if (data.type === 'join') {
                     if (isHost) {
+                        mpStatus = data.name + ' katıldı!';
                         mpPlayers.push({ name: data.name, score: 0 });
                         broadcast({ type: 'update', players: mpPlayers });
                     }
@@ -479,11 +532,15 @@
                 else if (data.type === 'update') mpPlayers = data.players;
                 else if (data.type === 'score') {
                     if (isHost) {
-                        var p = mpPlayers.find(p => p.name === data.name); // Match by name now
+                        var p = mpPlayers.find(p => p.name === data.name);
                         if (p) p.score = Math.max(p.score, data.score);
                         broadcast({ type: 'update', players: mpPlayers });
                     }
                 }
+            });
+            conn.on('error', function (err) {
+                mpStatus = 'Bağlantı hatası: ' + err;
+                alert('Bağlantı hatası: ' + err);
             });
         }
 
