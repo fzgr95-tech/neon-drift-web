@@ -489,6 +489,16 @@
                     conn.send({ type: 'join', name: saved.mpName || 'GUEST' });
                 });
 
+                // DATA HANDLER - Guest receives updates from Host
+                conn.on('data', function (data) {
+                    if (data.type === 'start') {
+                        start(); playSound('select');
+                    }
+                    else if (data.type === 'update') {
+                        mpPlayers = data.players;
+                    }
+                });
+
                 conn.on('error', function (err) {
                     mpStatus = 'Bağlantı hatası: ' + err;
                     alert('Bağlantı hatası: ' + err);
