@@ -599,9 +599,14 @@
 
         // Broadcast to ALL connected guests
         function broadcast(msg) {
+            var sentCount = 0;
             conns.forEach(function (c) {
-                if (c && c.open) c.send(msg);
+                if (c && c.open) {
+                    c.send(msg);
+                    sentCount++;
+                }
             });
+            console.log('Broadcast sent to ' + sentCount + '/' + conns.length + ' connections');
         }
 
         // Guest's connection variable (single)
